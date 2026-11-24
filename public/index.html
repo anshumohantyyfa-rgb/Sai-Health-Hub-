@@ -131,7 +131,7 @@
 </div>
 </section>
 <section id="calendar" class="panel">
-<h2>30-day implementation plan</h2><p class="muted">A practical organic launch sequence. Tick items as completed; progress is saved in this browser.</p>
+<h2>30-day implementation plan</h2><p class="muted">A practical organic launch sequence. Tick items as completed; progress is saved to this app's server store.</p>
 <div id="planList" class="card"></div>
 </section>
 <section id="content" class="panel">
@@ -165,7 +165,7 @@
 </div>
 </div>
 <div class="card" style="margin-top:12px;border:2px solid #218653">
-<h3>✨ AI Creator · Gemini</h3>
+<h3>✨ AI Creator · Secure backend</h3>
 <p class="muted">Generate fresh creative copy and production direction with AI. Your brief is sent to the connected AI provider; do not include customer or medical records.</p>
 <label>What should AI create?</label><select id="aiKind"><option value="reel">AI Reel package</option><option value="poster">AI poster content & art direction</option><option value="both">Reel + poster package</option></select>
 <label>Additional creative direction</label><textarea id="aiBrief" maxlength="1200" placeholder="Example: friendly, family-focused, practical, seasonal campaign for Khordha"></textarea>
@@ -221,7 +221,7 @@
 <section id="customers" class="panel">
 <h2>Customer Transformation Studio</h2>
 <p class="muted">Record customer-defined goals and habit check-ins over time. This is a coaching and reflection tool, not a medical assessment or outcome guarantee.</p>
-<div class="notice">Use a customer code or first name only. Obtain clear permission before storing personal details or media. Never enter diagnoses, medication, test results or medical history. Records stay in this browser until you export a backup.</div>
+<div class="notice">Use a customer code or first name only. Obtain clear permission before storing personal details or media. Never enter diagnoses, medication, test results or medical history. Records are saved to this app's server store, keyed to this browser. They survive reloads but are erased when the app is redeployed, so export a backup to keep a copy.</div>
 <div class="grid" style="margin-top:12px">
 <div class="card"><h3>1 · Customer profile</h3>
 <label>Customer code / display name</label><input id="tcName" maxlength="50" placeholder="e.g. SHH-001">
@@ -257,7 +257,7 @@
 
 <section id="leads" class="panel">
 <h2>Lead Manager</h2>
-<div class="notice">Default enquiry automation is enabled: each saved enquiry enters the lead pipeline, links to a contact when a valid phone number is supplied, and creates an internal response task. Promotional follow-ups require explicit, recorded consent. Tasks are local to this device; no messages are sent automatically.</div><div class="notice" style="margin-top:8px">Privacy note: entries are stored only in this browser on this device. This is not a cloud CRM or a shared customer database. Do not enter sensitive medical information.</div>
+<div class="notice">Default enquiry automation is enabled: each saved enquiry enters the lead pipeline, links to a contact when a valid phone number is supplied, and creates an internal response task. Promotional follow-ups require explicit, recorded consent. Tasks are stored on this app's server; no messages are sent automatically.</div><div class="notice" style="margin-top:8px">Privacy note: entries are saved to this app's server store, keyed to this browser. It is not a shared multi-user CRM, and records are erased when the app is redeployed. Do not enter sensitive medical information.</div>
 <div class="card" style="margin-top:12px">
 <div class="row"><div><label>Name</label><input id="lname" placeholder="Customer name"></div><div><label>Contact (optional)</label><input id="lcontact" placeholder="Phone or preferred contact"></div></div>
 <div class="row"><div><label>Enquiry source</label><select id="lsource"><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Google</option><option>Referral</option><option>Walk-in</option><option>Other</option></select></div><div><label>Status</label><select id="lstatus"><option>New</option><option>Contacted</option><option>Interested</option><option>Consultation scheduled</option><option>Customer</option><option>Not proceeding</option></select></div></div>
@@ -275,7 +275,7 @@
 </section>
 <section id="businessdesk" class="panel">
 <h2>Business Desk · Contacts, follow-ups & consultations</h2>
-<div class="notice">This module runs locally on this device. Follow-up dates are shown when you open the app; it does not send messages or notifications automatically. Promotional messages require recorded opt-in. Do not store health records or government ID numbers here.</div>
+<div class="notice">This module saves to this app's server store. Follow-up dates are shown when you open the app; it does not send messages or notifications automatically. Promotional messages require recorded opt-in. Do not store health records or government ID numbers here.</div>
 <div class="grid" style="margin-top:12px">
  <div class="card"><h3>Contact manager</h3>
   <label>Full name</label><input id="bdName" placeholder="Contact name">
@@ -373,7 +373,8 @@
 <div class="notice" style="margin-top:12px"><b>Stop-and-review rule:</b> If a post includes a health outcome, before/after image, product benefit, earnings statement or testimonial, do not publish until the claim and presentation have been checked against applicable law, platform rules and current Herbalife India policies.</div>
 </section>
 <section id="backup" class="panel">
-<h2>Backup, export & privacy</h2><div class="notice">This app stores information in this browser on this device. It is not cloud-synced. Clearing browser storage, changing browsers or losing the phone may erase records. Export a backup regularly and keep it somewhere private.</div>
+<h2>Backup, export & privacy</h2><div id="storageStatus" class="small muted">Checking where records are stored…</div>
+<div class="notice">This app saves records to a private server-side store keyed to this browser, so they survive reloads. The app runs without a persistent disk, so records are erased when it is redeployed; clearing browser storage disconnects this browser from its records. Export a backup regularly and keep it somewhere private.</div>
 <div class="card" style="margin-top:12px"><h3>Full backup</h3><p class="muted">Exports campaign progress, content drafts, enquiries, customer records, contacts, consent events, follow-ups, bookings and checklist state into one JSON file. This standard JSON export is not encrypted; use the encrypted backup in Data & Hosting for a password-protected copy.</p><div class="actions"><button class="btn" onclick="exportBackup()">Download full backup</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Restore from backup</button><input id="backupFile" type="file" accept="application/json,.json" hidden onchange="importBackup(event)"></div><p id="backupStatus" class="muted small" aria-live="polite"></p></div>
 <div class="card" style="margin-top:12px"><h3>Privacy checklist</h3><ul><li>Collect only the minimum contact details needed.</li><li>Do not record diagnoses, test results, medication or medical history.</li><li>Restrict access to this device and use a screen lock.</li><li>Delete records when no longer needed or when deletion is requested.</li><li>Keep exported backups encrypted/private; do not share them in public links.</li></ul><button class="btn danger" onclick="clearAllData()">Delete all app data from this browser</button></div>
 <div class="card" style="margin-top:12px"><h3>Hosting status</h3><p>Current file is a standalone app and can run locally in a modern Android browser. A public HTTPS URL requires publishing the file to a hosting provider account. No account has been connected and nothing has been uploaded or published from this app.</p><p class="muted small">Free hosting options can have changing limits and may require account registration. Do not upload customer data to a public repository.</p></div>
@@ -481,6 +482,7 @@
 <script src="/v8.js"></script>
 <script src="/v8-bridge.js"></script>
 <script src="/panel-health.js"></script>
+<script src="/storage-status.js"></script>
 <script src="/owner.js" defer></script>
 <script src="/mobile-nav.js" defer></script>
 </body>
