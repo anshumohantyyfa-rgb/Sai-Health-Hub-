@@ -1,0 +1,252 @@
+/*
+ * Styles for the preserved Sai Health Hub feature panels (Health Check-in,
+ * BMI Guide, Services). Scoped to .health-* and the brand tag so the migrated
+ * v8 stylesheet keeps full control of the rest of the app.
+ * Palette: premium corporate green on white.
+ */
+
+.brand-tag {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d8f3e3;
+  opacity: 0.92;
+  margin-top: 2px;
+}
+
+.health-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.health-field label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #143d2b;
+}
+
+.health-field input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 16px;
+  color: #123326;
+  background: #ffffff;
+  border: 1px solid #cfe3d8;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.health-field input:focus {
+  outline: 2px solid #1f7a4d;
+  outline-offset: 1px;
+  border-color: #1f7a4d;
+}
+
+.health-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.health-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #145c3a;
+  color: #ffffff;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.health-btn:hover {
+  background: #0f4a2e;
+}
+
+.health-btn:active {
+  transform: translateY(1px);
+}
+
+.health-btn:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.health-btn.ghost {
+  background: #ffffff;
+  color: #145c3a;
+  border: 1px solid #bcd9c9;
+}
+
+.health-btn.ghost:hover {
+  background: #f1f8f3;
+}
+
+.health-error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1c1c;
+  font-size: 14px;
+}
+
+.health-result {
+  background: linear-gradient(160deg, #f2faf5 0%, #ffffff 100%);
+  border: 1px solid #d7e9de;
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.health-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.health-value #bmi-value {
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 700;
+  color: #145c3a;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-unit {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5c7a6a;
+}
+
+.health-cat {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #123326;
+}
+
+.health-summary {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #43604f;
+}
+
+.health-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.health-chips span {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d7e9de;
+  background: #ffffff;
+  color: #4a6b57;
+}
+
+.health-chips span.active {
+  background: #145c3a;
+  border-color: #145c3a;
+  color: #ffffff;
+}
+
+.health-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.health-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e2efe7;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.health-history .h-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.health-history .h-bmi {
+  font-size: 20px;
+  font-weight: 700;
+  color: #145c3a;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-history .h-cat {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c5741;
+}
+
+.health-history .h-meta {
+  font-size: 12px;
+  color: #6b8578;
+}
+
+.health-history .h-delete {
+  appearance: none;
+  border: 1px solid #e4c9c9;
+  background: #ffffff;
+  color: #8a1c1c;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.health-history .h-delete:hover {
+  background: #fdf3f3;
+}
+
+.health-guide-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #3c5a49;
+}
+
+#bmi-guide-grid .kpi {
+  font-size: 20px;
+}
+
+@media (max-width: 640px) {
+  .health-value #bmi-value {
+    font-size: 36px;
+  }
+
+  .health-btn {
+    flex: 1 1 100%;
+  }
+
+  .health-history li {
+    align-items: flex-start;
+  }
+}
