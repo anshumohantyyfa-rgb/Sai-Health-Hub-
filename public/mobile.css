@@ -245,9 +245,15 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     position: fixed;
+    /* The base stylesheet sets nav{position:sticky;top:0}. That inherited top:0
+       combined with bottom:0 would stretch this bar across the whole viewport
+       and intercept every tap, so both axes are pinned here explicitly. */
+    top: auto;
+    bottom: 0;
     left: 0;
     right: 0;
-    bottom: 0;
+    height: auto;
+    overflow: visible;
     z-index: 50;
     background: #ffffff;
     border-top: 1px solid var(--line, #dce8df);
