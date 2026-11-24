@@ -7,6 +7,8 @@ const crypto = require('node:crypto');
 
 const BmiCalc = require('./public/bmi.js');
 const { createStore, newRecord } = require('./lib/store.js');
+const OwnerAuth = require('./lib/owner.js');
+const OwnerRecords = require('./lib/owner-records.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
@@ -785,6 +787,457 @@ async function handleGenerate(req, res) {
   }
 }
 
+/* ---------------------------------------------------------- owner console */
+
+const OWNER_COOKIE = 'shh_owner';
+const OWNER_BODY_LIMIT = 64 * 1024;
+const NO_STORE = { 'Cache-Control': 'no-store' };
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function requestIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+function ownerToken(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  return cookies[OWNER_COOKIE] || '';
+}
+
+function sessionCookie(req, token, maxAgeSeconds) {
+  const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https' ? '; Secure' : '';
+  return `${OWNER_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
+function ownerSessionPayload(req) {
+  return {
+    authenticated: OwnerAuth.validSession(ownerToken(req)),
+    passwordConfigured: OwnerAuth.passwordConfigured(),
+    source: OwnerAuth.passwordSource(),
+    sessionTtlSeconds: OwnerAuth.sessionTtlSeconds()
+  };
+}
+
+function requireOwner(req, res) {
+  if (OwnerAuth.validSession(ownerToken(req))) {
+    return true;
+  }
+  sendJson(res, 401, { error: 'Owner sign-in required.', authenticated: false }, NO_STORE);
+  return false;
+}
+
+async function readOwnerBody(req) {
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    const err = new Error('Content-Type must be application/json.');
+    err.status = 415;
+    throw err;
+  }
+  return readJsonBody(req, OWNER_BODY_LIMIT);
+}
+
+function handleOwnerSession(req, res) {
+  sendJson(res, 200, ownerSessionPayload(req), NO_STORE);
+}
+
+async function handleOwnerSetup(req, res) {
+  let body;
+  try {
+    body = await readOwnerBody(req);
+  } catch (err) {
+    sendJson(res, err.status || 400, { error: err.message }, NO_STORE);
+    return;
+  }
+  if (OwnerAuth.passwordConfigured()) {
+    sendJson(res, 409, { error: 'An owner password is already configured. Sign in instead.' }, NO_STORE);
+    return;
+  }
+  const result = OwnerAuth.setInitialPassword(body && body.password);
+  if (!result.ok) {
+    sendJson(res, 400, { error: result.error }, NO_STORE);
+    return;
+  }
+  const token = OwnerAuth.createSession();
+  sendJson(
+    res,
+    200,
+    { ok: true, session: ownerSessionPayload(req) },
+    Object.assign({ 'Set-Cookie': sessionCookie(req, token, OwnerAuth.sessionTtlSeconds()) }, NO_STORE)
+  );
+}
+
+async function handleOwnerLogin(req, res) {
+  const ip = requestIp(req);
+  if (OwnerAuth.rateLimited(ip)) {
+    sendJson(res, 429, { error: 'Too many sign-in attempts. Try again in a few minutes.' }, NO_STORE);
+    return;
+  }
+  let body;
+  try {
+    body = await readOwnerBody(req);
+  } catch (err) {
+    sendJson(res, err.status || 400, { error: err.message }, NO_STORE);
+    return;
+  }
+  if (!OwnerAuth.passwordConfigured()) {
+    sendJson(res, 409, { error: 'No owner password is configured yet. Create one first.', setupRequired: true }, NO_STORE);
+    return;
+  }
+  if (!OwnerAuth.checkPassword(body && body.password)) {
+    OwnerAuth.noteFailure(ip);
+    sendJson(res, 401, { error: 'That password is not correct.' }, NO_STORE);
+    return;
+  }
+  OwnerAuth.clearFailures(ip);
+  const token = OwnerAuth.createSession();
+  sendJson(
+    res,
+    200,
+    { ok: true, session: ownerSessionPayload(req) },
+    Object.assign({ 'Set-Cookie': sessionCookie(req, token, OwnerAuth.sessionTtlSeconds()) }, NO_STORE)
+  );
+}
+
+function handleOwnerLogout(req, res) {
+  OwnerAuth.destroySession(ownerToken(req));
+  sendJson(res, 200, { ok: true }, Object.assign({ 'Set-Cookie': sessionCookie(req, '', 0) }, NO_STORE));
+}
+
+const OWNER_COLLECTION_RE = /^\/api\/owner\/records\/([A-Za-z]+)$/;
+const OWNER_ITEM_RE = /^\/api\/owner\/records\/([A-Za-z]+)\/([A-Za-z0-9_-]{1,64})$/;
+
+async function handleOwnerCollection(req, res, collection, method) {
+  if (!OwnerRecords.isKnownCollection(collection)) {
+    sendJson(res, 404, { error: 'Unknown collection.' }, NO_STORE);
+    return;
+  }
+  if (method === 'GET') {
+    sendJson(res, 200, { items: OwnerRecords.list(collection) || [] }, NO_STORE);
+    return;
+  }
+  let body;
+  try {
+    body = await readOwnerBody(req);
+  } catch (err) {
+    sendJson(res, err.status || 400, { error: err.message }, NO_STORE);
+    return;
+  }
+  if (method === 'PUT') {
+    const result = OwnerRecords.replace(collection, body && body.items);
+    sendJson(res, result.ok ? 200 : 400, result.ok ? { ok: true, items: result.items } : { error: result.error }, NO_STORE);
+    return;
+  }
+  if (method === 'POST') {
+    const result = OwnerRecords.create(collection, body && body.record);
+    sendJson(
+      res,
+      result.ok ? 200 : 400,
+      result.ok ? { ok: true, item: result.item, items: result.items } : { error: result.error },
+      NO_STORE
+    );
+    return;
+  }
+  sendJson(res, 405, { error: 'Method not allowed.' }, NO_STORE);
+}
+
+async function handleOwnerItem(req, res, collection, id, method) {
+  if (!OwnerRecords.isKnownCollection(collection)) {
+    sendJson(res, 404, { error: 'Unknown collection.' }, NO_STORE);
+    return;
+  }
+  if (method === 'DELETE') {
+    const result = OwnerRecords.remove(collection, id);
+    sendJson(res, result.ok ? 200 : result.status || 400, result.ok ? { ok: true, items: result.items } : { error: result.error }, NO_STORE);
+    return;
+  }
+  if (method === 'PATCH') {
+    let body;
+    try {
+      body = await readOwnerBody(req);
+    } catch (err) {
+      sendJson(res, err.status || 400, { error: err.message }, NO_STORE);
+      return;
+    }
+    const result = OwnerRecords.update(collection, id, body && body.patch);
+    sendJson(
+      res,
+      result.ok ? 200 : result.status || 400,
+      result.ok ? { ok: true, item: result.item, items: result.items } : { error: result.error },
+      NO_STORE
+    );
+    return;
+  }
+  sendJson(res, 405, { error: 'Method not allowed.' }, NO_STORE);
+}
+
+function dayGap(fromIso, toDate) {
+  const from = new Date(fromIso);
+  if (Number.isNaN(from.getTime())) {
+    return null;
+  }
+  const a = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
+  const b = Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth(), toDate.getUTCDate());
+  return Math.round((b - a) / DAY_MS);
+}
+
+function firstWord(name) {
+  return String(name || '').trim().split(/\s+/)[0] || '';
+}
+
+function computeReminders() {
+  const today = new Date();
+  const customers = OwnerRecords.list('customers') || [];
+  const checkins = OwnerRecords.list('checkins') || [];
+  const leads = OwnerRecords.list('leads') || [];
+  const followups = OwnerRecords.list('followups') || [];
+  const items = [];
+
+  const customerById = (id) => customers.find((c) => String(c.id) === String(id)) || null;
+
+  followups.forEach((f) => {
+    if (String(f.status || '') === 'Completed' || !f.dueAt) {
+      return;
+    }
+    const gap = dayGap(f.dueAt, today);
+    if (gap === null || gap < -3) {
+      return;
+    }
+    const customer = customerById(f.customerId);
+    items.push({
+      type: 'followup',
+      id: String(f.id),
+      followupId: String(f.id),
+      customerId: customer ? String(customer.id) : '',
+      name: customer ? customer.name : f.name || 'Follow-up',
+      contact: (customer && customer.contact) || f.contact || '',
+      consent: Boolean(customer ? customer.consent : f.consent),
+      reason: f.reason || f.note || 'Scheduled follow-up',
+      daysOverdue: gap
+    });
+  });
+
+  customers.forEach((c) => {
+    if (!c.consent) {
+      return;
+    }
+    const own = checkins
+      .filter((k) => String(k.customerId) === String(c.id))
+      .map((k) => k.date || k.createdAt)
+      .filter(Boolean)
+      .sort();
+    const last = own.length ? own[own.length - 1] : null;
+    const gap = last ? dayGap(last, today) : null;
+    if (gap === null) {
+      items.push({
+        type: 'customer',
+        id: String(c.id),
+        customerId: String(c.id),
+        name: c.name,
+        contact: c.contact || '',
+        consent: true,
+        reason: 'No check-in recorded yet',
+        daysOverdue: 0
+      });
+      return;
+    }
+    if (gap >= 14) {
+      items.push({
+        type: 'customer',
+        id: String(c.id),
+        customerId: String(c.id),
+        name: c.name,
+        contact: c.contact || '',
+        consent: true,
+        reason: `Last check-in was ${gap} days ago`,
+        daysOverdue: gap - 14
+      });
+    }
+  });
+
+  leads.forEach((l) => {
+    const status = String(l.status || 'New');
+    if (status === 'Customer' || status === 'Not proceeding') {
+      return;
+    }
+    const gap = l.date ? dayGap(l.date, today) : null;
+    if (gap === null || gap < 3) {
+      return;
+    }
+    items.push({
+      type: 'lead',
+      id: String(l.id),
+      name: l.name || 'Lead',
+      contact: l.contact || '',
+      consent: String(l.consent || '') === 'Yes',
+      reason: `Lead is ${status} after ${gap} days`,
+      daysOverdue: gap - 3
+    });
+  });
+
+  items.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  return items;
+}
+
+function handleOwnerReminders(req, res) {
+  const items = computeReminders();
+  sendJson(res, 200, { ok: true, items, generatedAt: new Date().toISOString() }, NO_STORE);
+}
+
+function handleOwnerSummary(req, res) {
+  const counts = OwnerRecords.counts();
+  const leads = OwnerRecords.list('leads') || [];
+  const reminders = computeReminders();
+  sendJson(
+    res,
+    200,
+    {
+      counts,
+      openLeads: leads.filter((l) => !['Customer', 'Not proceeding'].includes(String(l.status || 'New'))).length,
+      remindersDue: reminders.filter((r) => r.daysOverdue >= 0).length,
+      storageKind: OwnerRecords.driverInfo().kind,
+      bmiCheckins: 0
+    },
+    NO_STORE
+  );
+}
+
+function whatsappLink(contact, text) {
+  const digits = String(contact || '').replace(/[^0-9]/g, '');
+  if (digits.length < 8) {
+    return '';
+  }
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+function templateDraft(name, language, purpose) {
+  const first = firstWord(name) || (language === 'or' ? 'ଗ୍ରାହକ' : 'there');
+  const topic = String(purpose || '').trim();
+  if (language === 'or') {
+    return (
+      `ନମସ୍କାର ${first}, ସାଇ ହେଲ୍ଥ ହବ୍ ରୁ ଜଣାଉଛୁ। ` +
+      (topic ? `ଆପଣଙ୍କ ${topic} ବିଷୟରେ ଆମେ ମନେ ପକାଉଛୁ। ` : 'ଆପଣଙ୍କ ସ୍ୱାସ୍ଥ୍ୟ ଲକ୍ଷ୍ୟ ବିଷୟରେ ଆମେ ମନେ ପକାଉଛୁ। ') +
+      'ଆପଣଙ୍କ ପାଇଁ ଉପଯୁକ୍ତ ସମୟ କହିଲେ ଆମେ ଆଗାମୀ ପଦକ୍ଷେପ ବିଷୟରେ କଥା ହେବୁ। ଧନ୍ୟବାଦ। ସାଇ ହେଲ୍ଥ ହବ୍ — Healthy Habits. Better Living..'
+    );
+  }
+  return (
+    `Hello ${first}, this is Sai Health Hub. ` +
+    (topic ? `We are following up about ${topic}. ` : 'We are following up on your health goals. ') +
+    'Reply with a time that suits you and we will share the next practical step. Thank you. Sai Health Hub — Healthy Habits. Better Living..'
+  );
+}
+
+function buildDraftPrompt(name, language, purpose) {
+  const target = language === 'or' ? 'Odia (ଓଡ଼ିଆ script, not transliteration)' : 'English';
+  return [
+    'Write one short WhatsApp follow-up message for a health coaching customer.',
+    `Customer first name: ${name}.`,
+    `Language: ${target}. Reply only in that language.`,
+    `Purpose: ${purpose || 'a friendly follow-up about their health goals'}.`,
+    'Rules: 2 to 3 sentences, warm and professional, no medical claims, no diagnosis, no promised results,',
+    'one clear next step, no emojis, no hashtags, no markdown, no quotation marks.',
+    'Sign off as Sai Health Hub. Return only the message text.'
+  ].join(' ');
+}
+
+async function handleOwnerDraft(req, res) {
+  let body;
+  try {
+    body = await readOwnerBody(req);
+  } catch (err) {
+    sendJson(res, err.status || 400, { error: err.message }, NO_STORE);
+    return;
+  }
+
+  const kind = String((body && body.kind) || 'customer');
+  const id = String((body && body.id) || '');
+  const language = body && body.language === 'or' ? 'or' : 'en';
+  const purpose = body && typeof body.purpose === 'string' ? body.purpose.slice(0, 160) : '';
+
+  let name = '';
+  let contact = '';
+  let consent = false;
+  let customerId = '';
+
+  if (kind === 'lead') {
+    const lead = (OwnerRecords.list('leads') || []).find((l) => String(l.id) === id);
+    if (!lead) {
+      sendJson(res, 404, { error: 'Lead not found.' }, NO_STORE);
+      return;
+    }
+    name = lead.name || 'Lead';
+    contact = lead.contact || '';
+    consent = String(lead.consent || '') === 'Yes';
+  } else if (kind === 'followup') {
+    const followup = (OwnerRecords.list('followups') || []).find((f) => String(f.id) === id);
+    if (!followup) {
+      sendJson(res, 404, { error: 'Follow-up not found.' }, NO_STORE);
+      return;
+    }
+    const customer = (OwnerRecords.list('customers') || []).find((c) => String(c.id) === String(followup.customerId));
+    name = (customer && customer.name) || followup.name || 'Customer';
+    contact = (customer && customer.contact) || followup.contact || '';
+    consent = Boolean(customer ? customer.consent : followup.consent);
+    customerId = customer ? String(customer.id) : '';
+  } else {
+    const customer = (OwnerRecords.list('customers') || []).find((c) => String(c.id) === id);
+    if (!customer) {
+      sendJson(res, 404, { error: 'Customer not found.' }, NO_STORE);
+      return;
+    }
+    name = customer.name || 'Customer';
+    contact = customer.contact || '';
+    consent = Boolean(customer.consent);
+    customerId = String(customer.id);
+  }
+
+  if (!consent) {
+    sendJson(res, 403, { error: 'No recorded follow-up consent for this person, so no message was drafted.' }, NO_STORE);
+    return;
+  }
+
+  let text = '';
+  let source = 'template';
+  let aiError = '';
+  try {
+    const raw = await generateAiText(process.env.GEMINI_API_KEY, buildDraftPrompt(firstWord(name), language, purpose));
+    const cleaned = normalizeAiText(raw);
+    if (cleaned) {
+      text = cleaned;
+      source = 'ai';
+    }
+  } catch (err) {
+    aiError = (err && (err.publicMessage || err.message)) || 'AI unavailable';
+  }
+
+  if (!text) {
+    text = templateDraft(name, language, purpose);
+    source = 'template';
+  }
+
+  sendJson(
+    res,
+    200,
+    {
+      ok: true,
+      text,
+      source,
+      language,
+      name,
+      contact,
+      customerId,
+      waLink: whatsappLink(contact, text),
+      delivery: 'manual',
+      aiError,
+      note:
+        'This app generates the message only. Sending happens in WhatsApp via the wa.me link; automatic delivery needs a WhatsApp Business API integration.'
+    },
+    NO_STORE
+  );
+}
+
 const server = http.createServer((req, res) => {
   const pathname = pathnameOf(req.url || '/');
   const method = req.method || 'GET';
@@ -845,6 +1298,104 @@ const server = http.createServer((req, res) => {
         return;
       }
       send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD, PUT, POST' });
+      return;
+    }
+
+    if (pathname === '/api/owner/session') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      handleOwnerSession(req, res);
+      return;
+    }
+
+    if (pathname === '/api/owner/setup') {
+      if (method !== 'POST') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+        return;
+      }
+      handleOwnerSetup(req, res).catch(() => {
+        sendJson(res, 500, { error: 'Could not create the owner password.' }, NO_STORE);
+      });
+      return;
+    }
+
+    if (pathname === '/api/owner/login') {
+      if (method !== 'POST') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+        return;
+      }
+      handleOwnerLogin(req, res).catch(() => {
+        sendJson(res, 500, { error: 'Could not sign in.' }, NO_STORE);
+      });
+      return;
+    }
+
+    if (pathname === '/api/owner/logout') {
+      if (method !== 'POST') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+        return;
+      }
+      handleOwnerLogout(req, res);
+      return;
+    }
+
+    if (pathname === '/api/owner/summary') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      if (!requireOwner(req, res)) return;
+      handleOwnerSummary(req, res);
+      return;
+    }
+
+    if (pathname === '/api/owner/reminders') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      if (!requireOwner(req, res)) return;
+      handleOwnerReminders(req, res);
+      return;
+    }
+
+    if (pathname === '/api/owner/whatsapp/draft') {
+      if (method !== 'POST') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+        return;
+      }
+      if (!requireOwner(req, res)) return;
+      handleOwnerDraft(req, res).catch(() => {
+        sendJson(res, 500, { error: 'Could not prepare a WhatsApp draft.' }, NO_STORE);
+      });
+      return;
+    }
+
+    const ownerItemMatch = OWNER_ITEM_RE.exec(pathname);
+    if (ownerItemMatch) {
+      if (!requireOwner(req, res)) return;
+      if (method !== 'PATCH' && method !== 'DELETE') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'PATCH, DELETE' });
+        return;
+      }
+      handleOwnerItem(req, res, ownerItemMatch[1], ownerItemMatch[2], method).catch(() => {
+        sendJson(res, 500, { error: 'Could not update this record.' }, NO_STORE);
+      });
+      return;
+    }
+
+    const ownerCollectionMatch = OWNER_COLLECTION_RE.exec(pathname);
+    if (ownerCollectionMatch) {
+      if (!requireOwner(req, res)) return;
+      if (!['GET', 'PUT', 'POST', 'HEAD'].includes(method)) {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, PUT, POST' });
+        return;
+      }
+      handleOwnerCollection(req, res, ownerCollectionMatch[1], method === 'HEAD' ? 'GET' : method).catch(() => {
+        sendJson(res, 500, { error: 'Could not reach the record store.' }, NO_STORE);
+      });
       return;
     }
 
