@@ -150,9 +150,9 @@ a {
 }
 
 .brand-tagline {
+  /* Displayed in the approved title case — never force uppercase here. */
   font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   color: var(--muted);
   font-weight: 600;
 }
@@ -203,6 +203,15 @@ a {
   letter-spacing: 0.18em;
   font-size: 0.72rem;
   font-weight: 700;
+  color: #a7e3c6;
+}
+
+/* The approved tagline keeps its exact casing wherever it appears. */
+.tagline {
+  margin: 0 0 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
   color: #a7e3c6;
 }
 
@@ -666,8 +675,7 @@ a {
 
 .footer-tagline {
   font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.04em;
   color: #a7e3c6;
   font-weight: 650;
 }
