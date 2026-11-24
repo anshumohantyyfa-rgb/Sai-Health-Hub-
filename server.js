@@ -378,8 +378,11 @@ function validateStateValue(key, value) {
     }
     return null;
   }
-  if (!Array.isArray(value)) {
-    return `The "${key}" collection must be an array.`;
+  // v8 stores most collections as arrays but a few as a single object
+  // (for example the active creative brief), so both shapes are valid.
+  const isPlainObject = typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (!Array.isArray(value) && !isPlainObject) {
+    return `The "${key}" collection must be an array or an object.`;
   }
   if (value.length > MAX_STATE_ITEMS) {
     return `The "${key}" collection holds too many items.`;
