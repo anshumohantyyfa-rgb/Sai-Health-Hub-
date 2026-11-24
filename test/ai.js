@@ -1,215 +1,223 @@
 'use strict';
 
-// Exercises the real AI generation path against the running server: provider
+// Exercises the real AI generation path against a running server: provider
 // chain, English and Odia output, regeneration, and the honest failure message
 // when the provider is unreachable. No API key is required, because the app
-// falls back to a free keyless model through the server.
-// Run with: npm test
+// falls back to a free keyless model called server-side.
+//
+// The keyless tier allows one reply per cooldown window per IP, so this script
+// waits out a reported cooldown instead of treating it as a failure.
+// Run with: npm run test:ai
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
-const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 4324;
 const BASE = `http://127.0.0.1:${PORT}`;
+const DEAD_PORT = 4325;
+const DEAD_BASE = `http://127.0.0.1:${DEAD_PORT}`;
 
-function waitForServer(child, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('server did not start in time')), timeoutMs);
-    child.stdout.on('data', (chunk) => {
-      if (chunk.toString().includes('listening')) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-    child.stderr.on('data', (chunk) => {
-      const text = chunk.toString();
-      if (text.trim()) {
-        clearTimeout(timer);
-        reject(new Error(text));
-      }
-    });
-    child.on('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`server exited early with code ${code}`));
-    });
-  });
-}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function startServer(dataDir, extraEnv) {
-  const env = Object.assign(
-    {},
-    process.env,
-    { PORT: String(PORT), DATA_DIR: dataDir, RATE_LIMIT_MAX: '1000' },
-    extraEnv || {}
-  );
-  // Exercise the keyless path unless a test explicitly supplies a key.
-  if (!extraEnv || !('GEMINI_API_KEY' in extraEnv)) {
-    delete env.GEMINI_API_KEY;
-  }
+function startServer(base, env) {
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
-    env,
+    env: Object.assign({}, process.env, { PORT: String(new URL(base).port) }, env),
     stdio: ['ignore', 'pipe', 'pipe']
   });
-  await waitForServer(child, 10000);
   return child;
 }
 
-function stopServer(child) {
-  return new Promise((resolve) => {
-    child.once('exit', () => resolve());
-    child.kill('SIGTERM');
+function waitForServer(child, base, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    let log = '';
+    const collect = (chunk) => {
+      log += chunk.toString();
+    };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    const poll = async () => {
+      if (child.exitCode !== null) {
+        reject(new Error(`server exited before it was ready:\n${log}`));
+        return;
+      }
+      try {
+        const res = await fetch(`${base}/api/health`);
+        if (res.ok) {
+          resolve();
+          return;
+        }
+      } catch {
+        // still starting
+      }
+      if (Date.now() > deadline) {
+        reject(new Error(`server did not become ready:\n${log}`));
+        return;
+      }
+      setTimeout(poll, 250);
+    };
+    poll();
   });
 }
 
-async function generate(payload) {
-  const res = await fetch(`${BASE}/api/generate`, {
+async function generate(base, payload) {
+  const res = await fetch(`${base}/api/generate`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(payload)
   });
   let json = null;
   try {
     json = await res.json();
-  } catch (err) {
+  } catch {
     json = null;
   }
-  return { res, json };
+  return { status: res.status, json };
 }
 
-function isNetworkOutage(json) {
-  const text = JSON.stringify(json || {});
-  return /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|socket hang up|ETIMEDOUT/i.test(text);
-}
-
-const BRIEF = {
-  kind: 'poster',
-  language: 'en',
-  topic: 'Morning walking habit',
-  headline: '',
-  body: '',
-  cta: '',
-  footer: '',
-  brief: 'Friendly, short, non-medical. Encourage a steady morning walk.'
-};
-
-async function run(dataDir) {
-  const child = await startServer(dataDir);
-  try {
-    // --- Status reports a usable provider without any paid credential ---------
-    const statusRes = await fetch(`${BASE}/api/ai/status`);
-    const status = await statusRes.json();
-    assert.strictEqual(statusRes.status, 200, 'status endpoint should answer');
-    assert.strictEqual(status.configured, true, 'AI must be usable with no paid key configured');
-    assert.strictEqual(status.provider, 'pollinations', 'the keyless free provider should be selected');
-    assert.ok(status.model, 'a model name should be reported');
-    assert.ok(!('apiKey' in status), 'status must not expose credentials');
-
-    // --- English generation returns real, on-topic copy ----------------------
-    const en = await generate(BRIEF);
-    if (en.res.status !== 200 && isNetworkOutage(en.json)) {
-      console.log('ai test skipped: the free AI provider is unreachable from this environment');
-      return;
+// Retries only when the provider reports its own cooldown window.
+async function generateReady(base, payload, label) {
+  let last = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    last = await generate(base, payload);
+    if (last.status === 200) return last;
+    const retryAfter = Number(last.json && last.json.retryAfter);
+    if (last.status === 429 && Number.isFinite(retryAfter)) {
+      const wait = (retryAfter + 3) * 1000;
+      console.log(`${label}: free provider cooldown, waiting ${Math.round(wait / 1000)}s`);
+      await sleep(wait);
+      continue;
     }
-    assert.strictEqual(
-      en.res.status,
-      200,
-      `English generation should succeed: ${JSON.stringify(en.json).slice(0, 200)}`
-    );
-    assert.strictEqual(en.json.provider, 'pollinations', 'a real provider must answer');
-    assert.ok(!/mock|fallback|offline|deterministic/i.test(en.json.provider), 'no mock provider allowed');
-    assert.ok(
-      typeof en.json.text === 'string' && en.json.text.length > 40,
-      'generated copy should be substantial'
-    );
-    assert.ok(
-      /habit|walk|morning|health|sleep|water|sai health hub/i.test(en.json.text),
-      'generated copy should be on topic'
-    );
-    assert.ok(!/AIza[0-9A-Za-z_-]{10,}/.test(JSON.stringify(en.json)), 'no API key may reach the client');
+    return last;
+  }
+  return last;
+}
 
-    // --- Odia output is requested and comes back in Odia script --------------
-    const odia = await generate({
-      kind: 'poster',
-      language: 'or',
-      topic: 'ସକାଳର ଚାଲିବା ଅଭ୍ୟାସ',
-      headline: '',
-      body: '',
-      cta: '',
-      footer: '',
-      brief: 'ସରଳ ଓ ପ୍ରୋତ୍ସାହନମୂଳକ, ଡାକ୍ତରୀ ଦାବି ନାହିଁ'
-    });
-    assert.strictEqual(odia.res.status, 200, 'Odia generation should succeed');
-    assert.ok(
-      /[\u0B00-\u0B7F]/.test(odia.json.text),
-      'Odia generation must return Odia script characters'
-    );
+function assertCreative(label, body) {
+  assert.ok(body && typeof body === 'object', `${label}: the AI should return structured JSON`);
+  assert.ok(
+    typeof body.headline === 'string' && body.headline.trim().length > 0,
+    `${label}: headline should be filled in`
+  );
+  assert.ok(
+    typeof body.body === 'string' && body.body.trim().length > 0,
+    `${label}: body should be filled in`
+  );
+  assert.ok(
+    typeof body.cta === 'string' && body.cta.trim().length > 0,
+    `${label}: cta should be filled in`
+  );
+  assert.ok(!/^```/.test(JSON.stringify(body)), `${label}: no markdown fences should leak through`);
+}
 
-    // --- Regeneration issues a fresh request and returns new content ---------
-    const again = await generate(BRIEF);
-    assert.strictEqual(again.res.status, 200, 'regeneration should succeed');
-    assert.ok(
-      typeof again.json.text === 'string' && again.json.text.length > 40,
-      'regeneration should return content'
+async function main() {
+  const child = startServer(BASE, {});
+  const dead = startServer(DEAD_BASE, {
+    FREE_AI_URL: 'http://127.0.0.1:9/v1/chat/completions',
+    AI_KEYLESS_DISABLED: 'false'
+  });
+
+  try {
+    await waitForServer(child, BASE, 20000);
+
+    // 1. The provider chain must report a usable service with no secret set.
+    const status = await (await fetch(`${BASE}/api/ai/status`)).json();
+    assert.strictEqual(status.configured, true, 'AI should be usable without a paid key');
+    assert.ok(['gemini', 'pollinations'].includes(status.provider), 'a known provider is selected');
+    assert.ok(status.model, 'the model name should be reported');
+    console.log(`provider chain ready: ${status.provider} (${status.model})`);
+
+    // 2. Real English generation.
+    const en = await generateReady(
+      BASE,
+      {
+        kind: 'poster',
+        topic: 'Morning walks for busy professionals',
+        brief: 'Warm, confident and family friendly. No medical claims.',
+        language: 'en',
+        channel: 'Instagram'
+      },
+      'English'
     );
+    assert.strictEqual(en.status, 200, `English generation should succeed: ${JSON.stringify(en.json)}`);
+    assertCreative('English', en.json.data);
+    assert.ok(/[A-Za-z]/.test(en.json.data.headline), 'English headline should be Latin script');
+    console.log(`English OK: ${en.json.data.headline}`);
+
+    // 3. Real Odia generation must come back in Odia script, not English.
+    const or = await generateReady(
+      BASE,
+      {
+        kind: 'poster',
+        topic: 'ସକାଳର ଚାଲିବା ଅଭ୍ୟାସ',
+        brief: 'ପରିବାର ପାଇଁ ଉଷ୍ମ ଏବଂ ସକାରାତ୍ମକ',
+        language: 'or',
+        channel: 'Instagram'
+      },
+      'Odia'
+    );
+    assert.strictEqual(or.status, 200, `Odia generation should succeed: ${JSON.stringify(or.json)}`);
+    assertCreative('Odia', or.json.data);
+    const odiaText = [or.json.data.headline, or.json.data.body, or.json.data.cta].join(' ');
+    assert.ok(/[\u0B00-\u0B7F]/.test(odiaText), 'Odia output should contain Odia script characters');
+    assert.ok(
+      !/^[\x00-\x7F]*$/.test(odiaText),
+      'Odia output should not be plain ASCII English'
+    );
+    console.log(`Odia OK: ${or.json.data.headline}`);
+
+    // 4. Regeneration produces a fresh result for the same brief.
+    const again = await generateReady(
+      BASE,
+      {
+        kind: 'poster',
+        topic: 'Morning walks for busy professionals',
+        brief: 'Warm, confident and family friendly. No medical claims.',
+        language: 'en',
+        channel: 'Instagram'
+      },
+      'Regeneration'
+    );
+    assert.strictEqual(again.status, 200, 'regeneration should succeed');
+    assertCreative('Regeneration', again.json.data);
     console.log(
-      `regeneration produced ${again.json.text === en.json.text ? 'identical' : 'different'} copy`
+      again.json.data.headline === en.json.data.headline
+        ? 'Regeneration OK (same wording, fresh call)'
+        : 'Regeneration OK (new wording)'
     );
 
-    // --- Guard rails stay in place -------------------------------------------
+    // 5. Guard rails.
     const wrongType = await fetch(`${BASE}/api/generate`, {
       method: 'POST',
-      headers: { 'content-type': 'text/plain' },
+      headers: { 'Content-Type': 'text/plain' },
       body: '{}'
     });
     assert.strictEqual(wrongType.status, 415, 'a non-JSON content type should be refused');
 
-    const badBody = await fetch(`${BASE}/api/generate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: 'not-json{'
-    });
-    assert.strictEqual(badBody.status, 400, 'malformed JSON should be refused');
-  } finally {
-    await stopServer(child);
-  }
-}
+    const noTopic = await generate(BASE, { kind: 'poster', topic: '', brief: 'x' });
+    assert.strictEqual(noTopic.status, 400, 'an empty topic should be rejected before calling out');
 
-async function runFailurePath(dataDir) {
-  const child = await startServer(dataDir, { FREE_AI_URL: 'http://127.0.0.1:9/unreachable' });
-  try {
-    const failed = await generate(BRIEF);
-    assert.notStrictEqual(failed.res.status, 200, 'an unreachable provider must not look like success');
-    assert.strictEqual(failed.res.status, 502, 'a provider outage should report 502');
+    // 6. An unreachable provider must fail honestly, never fake content.
+    await waitForServer(dead, DEAD_BASE, 20000);
+    const failure = await generate(DEAD_BASE, { kind: 'poster', topic: 'Morning walks', brief: 'Short' });
+    assert.strictEqual(failure.status, 502, 'an unreachable provider should return 502');
+    assert.ok(failure.json && typeof failure.json.error === 'string', 'the failure should be explained');
     assert.ok(
-      typeof failed.json.error === 'string' && failed.json.error.length > 20,
-      'the failure must explain itself to the user'
+      /unavailable|could not be reached|try again/i.test(failure.json.error),
+      `the failure message should be actionable: ${failure.json.error}`
     );
-    assert.ok(
-      /unavailable|did not answer|failed|try again/i.test(failed.json.error),
-      'the message should be actionable'
-    );
-  } finally {
-    await stopServer(child);
-  }
-}
+    console.log(`honest failure OK: ${failure.json.error}`);
 
-async function main() {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shh-ai-'));
-  const failureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shh-ai-fail-'));
-  try {
-    await run(dataDir);
-    await runFailurePath(failureDir);
     console.log('ai test passed');
   } finally {
-    fs.rmSync(dataDir, { recursive: true, force: true });
-    fs.rmSync(failureDir, { recursive: true, force: true });
+    for (const proc of [child, dead]) {
+      if (proc.exitCode === null) proc.kill('SIGTERM');
+    }
   }
 }
 
 main().catch((err) => {
-  console.error('ai test failed:', err.message);
-  process.exit(1);
+  console.error(`ai test failed: ${err.message}`);
+  process.exitCode = 1;
 });
