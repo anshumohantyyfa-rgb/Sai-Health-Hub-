@@ -100,10 +100,19 @@ if (/wellness/i.test(css + v8Js + panels + headerInner + footer + navInner)) {
 }
 
 // --- extra navigation entries for the preserved features -------------------
+// v8 styles a .toptools language switch and calls $('langEn') / $('langOr'), but
+// that markup was missing from the v8 file itself, so setLanguage() threw on
+// load. Restoring the control (styled by v8's own .toptools rules) repairs the
+// bilingual toggle.
+const LANG_TOOLS =
+  '<div class="toptools"><span>Language</span>' +
+  '<button id="langEn" type="button" class="langactive" onclick="setLanguage(\'en\')">English</button>' +
+  '<button id="langOr" type="button" onclick="setLanguage(\'or\')">ଓଡ଼ିଆ</button></div>';
+
 const EXTRA_NAV =
-  '<button data-tab="checkin">Health Check-in</button>' +
-  '<button data-tab="bmi-guide">BMI Guide</button>' +
-  '<button data-tab="services">Services</button>';
+  '<button data-tab="checkin" data-en="Health Check-in" data-or="ସ୍ୱାସ୍ଥ୍ୟ ଯାଞ୍ଚ">Health Check-in</button>' +
+  '<button data-tab="bmi-guide" data-en="BMI Guide" data-or="BMI ମାର୍ଗଦର୍ଶିକା">BMI Guide</button>' +
+  '<button data-tab="services" data-en="Services" data-or="ସେବାଗୁଡ଼ିକ">Services</button>';
 
 const EXTRA_PANELS = `<section id="checkin" class="panel">
 <h2>Health Check-in</h2>
@@ -172,9 +181,14 @@ const EXTRA_PANELS = `<section id="checkin" class="panel">
 
 // The v8 header prints the brand in caps and already carries the approved
 // tagline on its .tag line, so only the casing of the name is normalised.
-const headerHtml = headerInner.replace(/>SAI HEALTH HUB</, '>Sai Health Hub<');
+const headerHtml = headerInner
+  .replace(/>SAI HEALTH HUB</, '>Sai Health Hub<')
+  .replace(/<\/div>$/, `${LANG_TOOLS}</div>`);
 if (!headerHtml.includes('Sai Health Hub')) {
   throw new Error('Migration aborted: brand name missing from the header');
+}
+if (!headerHtml.includes('id="langEn"') || !headerHtml.includes('id="langOr"')) {
+  throw new Error('Migration aborted: the language switch was not inserted');
 }
 
 const html = `<!DOCTYPE html>
