@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sai Health Hub</title>
+    <meta name="description" content="Sai Health Hub - track your daily health check-ins, BMI and wellness habits in one place." />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">+</span>
+        <span>Sai Health Hub</span>
+      </a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="#checkin">Check-in</a>
+        <a href="#services">Services</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">Your everyday wellness companion</p>
+        <h1>Small daily check-ins,<br />clearer health decisions.</h1>
+        <p class="lede">
+          Sai Health Hub brings your weight, BMI and daily habits into one calm dashboard so you can
+          spot trends early and act on them.
+        </p>
+        <a class="cta" href="#checkin">Start a check-in</a>
+      </section>
+
+      <section class="cards" id="services">
+        <article class="card">
+          <h2>BMI check</h2>
+          <p>Enter your height and weight to see your body mass index and what the range means.</p>
+        </article>
+        <article class="card">
+          <h2>Habit tracking</h2>
+          <p>Log sleep, water and movement alongside your numbers to see the whole picture.</p>
+        </article>
+        <article class="card">
+          <h2>Trend view</h2>
+          <p>Keep a simple history of check-ins so changes in your health stand out over time.</p>
+        </article>
+      </section>
+
+      <section class="panel" id="checkin">
+        <h2>Daily check-in</h2>
+        <p class="panel-hint">All calculations run in your browser. Nothing is uploaded.</p>
+
+        <form id="checkin-form" class="checkin-form" novalidate>
+          <div class="field">
+            <label for="height">Height (cm)</label>
+            <input id="height" name="height" type="number" inputmode="decimal" min="50" max="260" step="0.1" placeholder="170" required />
+          </div>
+          <div class="field">
+            <label for="weight">Weight (kg)</label>
+            <input id="weight" name="weight" type="number" inputmode="decimal" min="20" max="400" step="0.1" placeholder="70" required />
+          </div>
+          <button type="submit" class="cta">Calculate BMI</button>
+        </form>
+
+        <p id="error" class="error" role="alert" hidden></p>
+
+        <div id="result" class="result" hidden aria-live="polite">
+          <p class="result-label">Your BMI</p>
+          <p class="result-value" id="bmi-value">0</p>
+          <p class="result-category" id="bmi-category"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Sai Health Hub is an informational tool and is not a substitute for medical advice.</p>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
