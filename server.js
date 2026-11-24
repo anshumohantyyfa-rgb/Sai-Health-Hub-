@@ -386,19 +386,21 @@ function validateStateValue(key, value) {
   if (!Array.isArray(value) && !isPlainObject) {
     return `The "${key}" collection must be an array or an object.`;
   }
-  if (value.length > MAX_STATE_ITEMS) {
-    return `The "${key}" collection holds too many items.`;
-  }
-  const supported = value.every(
-    (item) =>
-      item === null ||
-      typeof item === 'string' ||
-      typeof item === 'number' ||
-      typeof item === 'boolean' ||
-      (typeof item === 'object' && !Array.isArray(item))
-  );
-  if (!supported) {
-    return `The "${key}" collection contains an unsupported item.`;
+  if (Array.isArray(value)) {
+    if (value.length > MAX_STATE_ITEMS) {
+      return `The "${key}" collection holds too many items.`;
+    }
+    const supported = value.every(
+      (item) =>
+        item === null ||
+        typeof item === 'string' ||
+        typeof item === 'number' ||
+        typeof item === 'boolean' ||
+        (typeof item === 'object' && !Array.isArray(item))
+    );
+    if (!supported) {
+      return `The "${key}" collection contains an unsupported item.`;
+    }
   }
   let encoded;
   try {
@@ -864,7 +866,7 @@ async function handleOwnerSetup(req, res) {
   sendJson(
     res,
     200,
-    { ok: true, session: ownerSessionPayload(req) },
+    { ok: true, session: ownerSessionPayload(req, token) },
     Object.assign({ 'Set-Cookie': sessionCookie(req, token, OwnerAuth.sessionTtlSeconds()) }, NO_STORE)
   );
 }
