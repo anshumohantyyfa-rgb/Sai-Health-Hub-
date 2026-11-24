@@ -85,7 +85,8 @@ const checks = [
   [panels.includes('id="metrics"'), 'markup should contain the metrics panel'],
   [qrScript.includes('qrcode'), 'qrcode CDN tag should be preserved'],
   [navInner.includes('data-tab="overview"'), 'navigation should keep the overview tab'],
-  [/Sai Health Hub/.test(headerInner), 'header should carry the brand name'],
+  [/sai health hub/i.test(headerInner), 'header should carry the brand name'],
+  [/Healthy Habits\. Better Living\.\./.test(headerInner), 'header should carry the approved tagline'],
   [mainJs.length > 40000, 'main script looks too small'],
   [aiJs.length > 1000, 'AI script looks too small']
 ];
@@ -169,10 +170,12 @@ const EXTRA_PANELS = `<section id="checkin" class="panel">
 </div>
 </section>`;
 
-const headerHtml = headerInner.replace(
-  '<div class="wrap">',
-  '<div class="wrap">\n<div class="brand-tag">Healthy Habits. Better Living..</div>'
-);
+// The v8 header prints the brand in caps and already carries the approved
+// tagline on its .tag line, so only the casing of the name is normalised.
+const headerHtml = headerInner.replace(/>SAI HEALTH HUB</, '>Sai Health Hub<');
+if (!headerHtml.includes('Sai Health Hub')) {
+  throw new Error('Migration aborted: brand name missing from the header');
+}
 
 const html = `<!DOCTYPE html>
 <html lang="en">
