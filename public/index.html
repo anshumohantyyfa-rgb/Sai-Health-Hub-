@@ -8,6 +8,7 @@
 <title>Sai Health Hub — Healthy Habits. Better Living..</title>
 <link rel="stylesheet" href="/v8.css">
 <link rel="stylesheet" href="/health.css">
+<link rel="stylesheet" href="/owner.css">
 </head>
 <body>
 <header>
@@ -21,8 +22,14 @@
 <nav id="nav">
 <button class="active" data-tab="overview">Overview</button><button data-tab="calendar">30-Day Plan</button><button data-tab="content">Content Studio</button><button data-tab="creator">Reels & Poster Creator</button><button data-tab="identity">ID Upload & Owner Review</button><button data-tab="customers">Customer Transformation</button><button data-tab="leads">Lead Manager</button><button data-tab="whatsapp">WhatsApp Studio</button><button data-tab="businessdesk">Business Desk</button><button data-tab="datahosting">Data & Hosting</button><button data-tab="finalqa">Final QA</button><button data-tab="compliance">Compliance</button><button data-tab="metrics">Weekly Metrics</button><button data-tab="backup">Backup & Privacy</button>
 <button data-tab="checkin" data-en="Health Check-in" data-or="ସ୍ୱାସ୍ଥ୍ୟ ଯାଞ୍ଚ">Health Check-in</button><button data-tab="bmi-guide" data-en="BMI Guide" data-or="BMI ମାର୍ଗଦର୍ଶିକା">BMI Guide</button><button data-tab="services" data-en="Services" data-or="ସେବାଗୁଡ଼ିକ">Services</button>
+<button data-tab="owner" data-en="Owner Console" data-or="ମାଲିକ କନସୋଲ">Owner Console</button>
 </nav>
 <main>
+<section id="owner" class="panel">
+<h2 data-en="Owner Console" data-or="ମାଲିକ କନସୋଲ">Owner Console</h2>
+<p class="sub" data-en="Secure owner sign-in for customer records, follow-up reminders and WhatsApp drafts." data-or="ଗ୍ରାହକ ତଥ୍ୟ, ଫଲୋଅପ ସ୍ମରଣ ଓ WhatsApp ଡ୍ରାଫ୍ଟ ପାଇଁ ସୁରକ୍ଷିତ ମାଲିକ ସାଇନ ଇନ।">Secure owner sign-in for customer records, follow-up reminders and WhatsApp drafts.</p>
+<div id="ownerRoot"></div>
+</section>
 <section id="overview" class="panel active">
 <h2>Growth command centre</h2>
 <div class="grid">
@@ -376,5 +383,6 @@
 <script src="/v8.js"></script>
 <script src="/v8-bridge.js"></script>
 <script src="/panel-health.js"></script>
+<script src="/owner.js" defer></script>
 </body>
 </html>

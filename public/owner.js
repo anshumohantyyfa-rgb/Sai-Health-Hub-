@@ -120,7 +120,7 @@
     const items = [
       [t('Customers', 'ଗ୍ରାହକ'), counts.customers || 0],
       [t('Coaching check-ins', 'କୋଚିଂ ଯାଞ୍ଚ'), counts.checkins || 0],
-      [t('BMI check-ins (server)', 'BMI ଯାଞ୍ଚ (ସର୍ଭର)'), s.bmiCheckins || 0],
+      [t('Storage', 'ଷ୍ଟୋରେଜ'), s.storageKind || 'file'],
       [t('Open leads', 'ଖୋଲା ଲିଡ'), s.openLeads || 0],
       [t('Follow-ups due', 'ସମୟ ହୋଇଥିବା ଫଲୋଅପ'), s.remindersDue || 0]
     ];
