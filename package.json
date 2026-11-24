@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js && node test/api.js && node test/state.js"
+    "test": "node test/smoke.js && node test/api.js && node test/state.js && node test/ai.js"
   },
   "engines": {
     "node": ">=22"

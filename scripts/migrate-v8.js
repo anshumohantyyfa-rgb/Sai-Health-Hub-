@@ -71,7 +71,38 @@ const mainJs = inlineBlocks[0] || '';
 const aiJs = inlineBlocks[1] || '';
 
 // v8's AI status probe expects { configured }; /api/ai/status provides it.
-const v8Js = [mainJs, aiJs].join('\n').replace(/\/api\/health/g, '/api/ai/status');
+// The copy patches keep the UI honest about which provider answered and turn a
+// provider outage into an actionable message instead of a silently dead button.
+function applyAiCopyPatches(source) {
+  const patches = [
+    [
+      "el.textContent=j.configured?'AI backend connected · Gemini text generation available.':'Backend is online, but GEMINI_API_KEY is not configured yet.';",
+      "el.textContent=j.configured?'AI backend connected · '+(j.model||'AI model')+' ready via '+(j.provider||'server')+'.':'Backend is online, but no AI provider is configured yet.';"
+    ],
+    [
+      "status.textContent='Sending your creative brief to Gemini…';",
+      "status.textContent='Sending your creative brief to the AI service…';"
+    ],
+    [
+      "catch(e){status.textContent='Could not generate: '+e.message;}",
+      "catch(e){status.textContent='Could not generate: '+e.message+' Your brief is unchanged, so you can press Generate again.';}"
+    ],
+    [
+      "'AI not connected: '+e.message+' This feature needs the secure server endpoint; the standalone HTML does not contain an AI model or API key.'",
+      "'AI not connected: '+e.message+' The server-side AI service could not be reached. Try again in a moment.'"
+    ]
+  ];
+  return patches.reduce((text, [from, to]) => {
+    if (!text.includes(from)) {
+      throw new Error(`Migration aborted: AI copy anchor not found (${from.slice(0, 50)}...)`);
+    }
+    return text.split(from).join(to);
+  }, source);
+}
+
+const v8Js = applyAiCopyPatches(
+  [mainJs, aiJs].join('\n').replace(/\/api\/health/g, '/api/ai/status')
+);
 
 // --- sanity checks: fail loudly instead of writing a broken bundle ----------
 const checks = [
