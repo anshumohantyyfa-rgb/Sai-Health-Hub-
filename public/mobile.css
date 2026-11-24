@@ -555,7 +555,7 @@
     line-height: 1.25;
   }
 
-  .m-back-home {
+  #all-modules .m-back-home {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -579,7 +579,7 @@
     flex: 0 0 auto;
   }
 
-  .m-am-note {
+  #all-modules .m-am-note {
     display: flex;
     align-items: center;
     gap: 10px;
