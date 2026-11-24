@@ -1,0 +1,312 @@
+/*
+ * Sai Health Hub — mobile navigation layer.
+ *
+ * Every rule that changes the layout lives inside a small-screen media query,
+ * so the desktop presentation is byte-for-byte unchanged. The mobile pattern is:
+ * compact top bar with a hamburger, an "All Modules" card grid, and a fixed
+ * bottom navigation bar with Android safe-area padding.
+ */
+
+/* New mobile chrome stays out of the desktop layout entirely. */
+.m-topbar,
+.m-bottomnav,
+#all-modules .m-modules {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  :root {
+    --m-topbar-h: 56px;
+    --m-bottomnav-h: 64px;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+    /* Keep content clear of the fixed bottom bar and the Android gesture area. */
+    padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+
+  /* The tall hero header and the horizontally scrolling tab strip are replaced. */
+  header,
+  nav#nav {
+    display: none;
+  }
+
+  .wrap {
+    padding-left: 14px;
+    padding-right: 14px;
+    max-width: 100%;
+  }
+
+  main {
+    padding-top: 4px;
+  }
+
+  /* Nothing may push the page wider than the viewport. */
+  main,
+  section,
+  .panel,
+  .grid,
+  .row,
+  .card,
+  .wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  img,
+  svg,
+  canvas,
+  video {
+    max-width: 100%;
+  }
+
+  p,
+  li,
+  h1,
+  h2,
+  h3,
+  h4,
+  td,
+  th,
+  .muted,
+  .notice,
+  .creative-preview {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .grid,
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .canvas-actions,
+  .toptools,
+  .owner-actions {
+    flex-wrap: wrap;
+  }
+
+  /* 16px inputs stop Android from zooming the page on focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button,
+  .btn {
+    min-height: 44px;
+  }
+
+  /* Wide content scrolls inside its own box instead of the whole page. */
+  .owner-table-wrap,
+  .owner-table,
+  .creative-preview,
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* ---------- compact top bar ---------- */
+  .m-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: linear-gradient(120deg, #10472e, #218653);
+    color: #ffffff;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
+    min-height: var(--m-topbar-h);
+  }
+
+  .m-hamburger {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 12px;
+    color: #ffffff;
+    padding: 0;
+  }
+
+  .m-hamburger:active {
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  .m-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .m-brand b {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+  }
+
+  .m-brand span {
+    font-size: 11px;
+    opacity: 0.92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .m-lang {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 10px;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* ---------- All Modules page ---------- */
+  #all-modules .m-intro {
+    margin: 4px 0 14px;
+  }
+
+  #all-modules .m-modules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding-bottom: 6px;
+  }
+
+  .m-mod-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    min-height: 88px;
+    padding: 14px 12px;
+    background: #ffffff;
+    border: 1px solid var(--line, #dce8df);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(20, 92, 58, 0.06);
+    color: var(--ink, #183126);
+    font: inherit;
+    text-align: left;
+  }
+
+  .m-mod-card:active {
+    background: #f1f8f3;
+  }
+
+  .m-mod-card .m-ico {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--mint, #eaf5ee);
+    color: #145c3a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .m-mod-card .m-lbl {
+    font-size: 13.5px;
+    font-weight: 650;
+    line-height: 1.3;
+  }
+
+  /* ---------- fixed bottom navigation ---------- */
+  .m-bottomnav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: #ffffff;
+    border-top: 1px solid var(--line, #dce8df);
+    box-shadow: 0 -2px 12px rgba(16, 71, 46, 0.08);
+    padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  }
+
+  .m-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 52px;
+    padding: 4px 2px;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    color: #66766d;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.1;
+  }
+
+  .m-tab svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+  }
+
+  .m-tab.active {
+    color: #145c3a;
+    background: #eef7f1;
+  }
+
+  .m-tab:active {
+    background: #e4f1e8;
+  }
+
+  /* Visible focus rings for keyboard and switch-access users. */
+  .m-hamburger:focus-visible,
+  .m-lang:focus-visible {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+  }
+
+  .m-tab:focus-visible,
+  .m-mod-card:focus-visible {
+    outline: 2px solid #1f7a4d;
+    outline-offset: 2px;
+  }
+}
+
+/* Landscape phones: shorter chrome so the content still has room. */
+@media (max-width: 820px) and (orientation: landscape) {
+  .m-topbar {
+    min-height: 46px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
+    padding-bottom: 4px;
+  }
+
+  .m-hamburger {
+    width: 40px;
+    height: 40px;
+  }
+
+  .m-tab {
+    min-height: 46px;
+  }
+}
