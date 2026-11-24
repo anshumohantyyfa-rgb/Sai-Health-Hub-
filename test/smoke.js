@@ -159,8 +159,23 @@ async function checkAssets() {
 
   // The migrated stylesheet and script must still carry the v8 feature set.
   const v8Js = await (await fetch(`${BASE}/v8.js`)).text();
-  ['setLanguage', 'renderPlan', 'renderLeads', 'generateWithAI', 'backupJSON'].forEach((symbol) => {
-    assert.ok(v8Js.includes(symbol), `v8.js should still define ${symbol}`);
+  [
+    'setLanguage',
+    'renderPlan',
+    'renderContent',
+    'renderLeads',
+    'renderMetrics',
+    'renderBusinessDesk',
+    'renderQAChecks',
+    'generateWithAI',
+    'exportBackup',
+    'importBackup',
+    'exportEncryptedBackup',
+    'makePoster',
+    'makeReel',
+    'recordConsentEvent'
+  ].forEach((symbol) => {
+    assert.ok(v8Js.includes(`function ${symbol}`), `v8.js should still define ${symbol}`);
   });
 }
 
