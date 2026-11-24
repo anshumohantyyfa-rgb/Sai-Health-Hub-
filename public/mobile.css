@@ -14,7 +14,9 @@
   display: none;
 }
 
-@media (max-width: 820px) {
+/* Phones in portrait, plus any short viewport (landscape phones are wide but
+   only ~360-412px tall, so a width-only query would hand them the desktop UI). */
+@media (max-width: 820px), (max-height: 480px) {
   :root {
     --m-topbar-h: 56px;
     --m-bottomnav-h: 64px;
@@ -308,7 +310,7 @@
 }
 
 /* Landscape phones: shorter chrome so the content still has room. */
-@media (max-width: 820px) and (orientation: landscape) {
+@media (max-height: 480px) and (orientation: landscape) {
   .m-topbar {
     min-height: 46px;
     padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
