@@ -485,6 +485,7 @@ function buildAiPrompt(body) {
   const parts = [
     'You are the creative assistant inside Sai Health Hub, a bilingual (English and Odia) health-habit coaching app for Khordha.',
     'Write factual, compliant, non-medical marketing copy. Never promise cures, guaranteed weight loss or medical outcomes.',
+    'Never use the word "wellness" anywhere in the output. Write "wellbeing" or "healthy living" instead.',
     'Reply with ONE JSON object and nothing else: no markdown fences, no commentary before or after it.',
     'Use double quotes for every string value. Allowed keys: headline, body, cta, caption, hashtags, visual_direction, reel_script.',
     'Always include headline, body and cta. Stay factual and non-medical: no cures, no guaranteed weight loss, no before/after promises, no invented testimonials.'
@@ -560,7 +561,7 @@ async function callGemini(apiKey, prompt) {
       throw failure;
     }
 
-    return { ok: true, text, provider: 'gemini', model: AI_MODEL };
+    return { ok: true, text: sanitizeBrandText(text), provider: 'gemini', model: AI_MODEL };
   } catch (err) {
     if (err && err.name === 'AbortError') {
       const failure = new Error('timeout');
@@ -572,6 +573,16 @@ async function callGemini(apiKey, prompt) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// The brand rule is absolute: generated copy must never contain the prohibited
+// word, so the prompt forbids it and every reply is scrubbed server-side too.
+const PROHIBITED_BRAND_WORD = /\bwellness\b/gi;
+function sanitizeBrandText(text) {
+  if (typeof text !== 'string') return '';
+  return text.replace(PROHIBITED_BRAND_WORD, (match) =>
+    match[0] === match[0].toUpperCase() ? 'Wellbeing' : 'wellbeing'
+  );
 }
 
 function normalizeAiText(raw) {
@@ -591,7 +602,7 @@ function normalizeAiText(raw) {
       }
     }
   }
-  return text;
+  return sanitizeBrandText(text);
 }
 
 async function callPollinations(prompt) {
@@ -607,7 +618,7 @@ async function callPollinations(prompt) {
           {
             role: 'system',
             content:
-              'You are a precise bilingual marketing copywriter for a health-habit coaching business. You answer with a single strict JSON object and nothing else.'
+              'You are a precise bilingual marketing copywriter for a health-habit coaching business. You answer with a single strict JSON object and nothing else. Never use the word "wellness".'
           },
           { role: 'user', content: prompt }
         ],

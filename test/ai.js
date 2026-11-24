@@ -128,6 +128,11 @@ function assertCreative(label, body) {
     `${label}: cta should be filled in`
   );
   assert.ok(!/^```/.test(JSON.stringify(body)), `${label}: no markdown fences should leak through`);
+  // Brand rule: the prohibited word must never reach generated copy.
+  assert.ok(
+    !/wellness/i.test(JSON.stringify(body)),
+    `${label}: generated copy must not contain the prohibited word (got: ${JSON.stringify(body).slice(0, 160)})`
+  );
 }
 
 async function main() {
