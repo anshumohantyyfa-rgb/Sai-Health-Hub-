@@ -47,6 +47,9 @@ const STATE_KEYS = new Set([
 
 // Optional AI integration (v8 Content Studio). Configured through Settings.
 const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+// Overridable so the Gemini request/response contract can be exercised against a
+// local stand-in during tests. Production uses the official endpoint by default.
+const AI_BASE_URL = (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
 const AI_TIMEOUT_MS = 25000;
 // Keyless free provider, used automatically when no Gemini key is configured.
 // No secret and no billing are involved, and the call happens server-side only.
@@ -486,8 +489,8 @@ function buildAiPrompt(body) {
     'Write factual, compliant, non-medical marketing copy. Never promise cures, guaranteed weight loss or medical outcomes.',
     'Never use the word "wellness" anywhere in the output. Write "wellbeing" or "healthy living" instead.',
     'Reply with ONE JSON object and nothing else: no markdown fences, no commentary before or after it.',
-    'Use double quotes for every string value. Allowed keys: headline, body, cta, caption, hashtags, visual_direction, reel_script.',
-    'Always include headline, body and cta. Stay factual and non-medical: no cures, no guaranteed weight loss, no before/after promises, no invented testimonials.'
+    'Use double quotes for every string value. Allowed keys: headline, body, cta, caption, hashtags, visual_direction, reel_script, whatsapp_message, ideas.',
+    'Stay factual and non-medical: no cures, no guaranteed weight loss, no before/after promises, no invented testimonials.'
   ];
   const kind = briefField(body.kind, 40);
   const language = briefField(body.language, 10);
@@ -499,12 +502,28 @@ function buildAiPrompt(body) {
   const brief = briefField(body.brief, 1200);
 
   if (kind) parts.push(`Format requested: ${kind}.`);
+  if (kind === 'whatsapp') {
+    parts.push(
+      'Always include headline, body, cta and whatsapp_message. whatsapp_message must be ready to send on WhatsApp in under 700 characters: a warm greeting, one practical idea, and one invitation to reply. No links, no medical claims.'
+    );
+  } else if (kind === 'ideas') {
+    parts.push(
+      'Always include headline, body and ideas. ideas must be an array of exactly 4 campaign ideas for this audience. Each idea is an object with title (under 60 characters), format (Reel, Carousel, Story, WhatsApp broadcast or Community session), why (one sentence on why it fits), and caption (one ready-to-use caption).'
+    );
+  } else {
+    parts.push('Always include headline, body and cta, plus caption and hashtags when they help.');
+  }
   const languageName =
     { en: 'English', or: 'Odia written in Odia script (\u0b13\u0b21\u0b3c\u0b3f\u0b06)', hi: 'Hindi written in Devanagari script' }[
       language
-    ] || (language || '');
+    ] || (language === 'mix' ? '' : language || '');
   if (languageName) {
     parts.push(`Write every value in ${languageName}. Keep the JSON keys themselves in English.`);
+  }
+  if (language === 'mix') {
+    parts.push(
+      'Write a natural bilingual package: the headline and call to action in English, and the body, caption and whatsapp_message in Odia script (\u0b13\u0b21\u0b3c\u0b3f\u0b06) so both audiences can read it. Never write the literal word "mix" in the output.'
+    );
   }
   if (topic) parts.push(`Topic: ${topic}.`);
   if (headline) parts.push(`Current headline: ${headline}.`);
@@ -520,7 +539,7 @@ async function callGemini(apiKey, prompt) {
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(AI_MODEL)}:generateContent`,
+      `${AI_BASE_URL}/v1beta/models/${encodeURIComponent(AI_MODEL)}:generateContent`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
