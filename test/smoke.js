@@ -1,7 +1,7 @@
 'use strict';
 
-// Starts the real server on an ephemeral port and asserts the app serves its UI,
-// its assets and its health endpoint. Run with: npm test
+// Starts the real server on an ephemeral port and asserts the app serves the
+// migrated UI, its assets and its health endpoint. Run with: npm test
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -84,6 +84,26 @@ function checkBmiMath() {
   });
 }
 
+// Every panel shipped by the v8 source must still be present after the migration.
+const V8_PANELS = [
+  'overview',
+  'calendar',
+  'content',
+  'creator',
+  'identity',
+  'customers',
+  'leads',
+  'whatsapp',
+  'businessdesk',
+  'datahosting',
+  'finalqa',
+  'compliance',
+  'metrics',
+  'backup'
+];
+
+const PRESERVED_PANELS = ['checkin', 'bmi-guide', 'services'];
+
 async function checkPageMarkup() {
   const res = await fetch(`${BASE}/`);
   assert.strictEqual(res.status, 200, 'GET / should return 200');
@@ -107,23 +127,41 @@ async function checkPageMarkup() {
   );
   assert.ok(html.includes('/bmi.js'), 'page should load the BMI module');
 
-  // Navigation targets and section anchors must exist.
-  ['#checkin', '#services', '#bmi-guide'].forEach((anchor) => {
-    assert.ok(html.includes(`href="${anchor}"`), `page should link to ${anchor}`);
-    assert.ok(html.includes(`id="${anchor.slice(1)}"`), `page should define section ${anchor}`);
+  // Migrated v8 panels: a section plus a matching navigation entry for each.
+  V8_PANELS.forEach((id) => {
+    assert.ok(html.includes(`id="${id}"`), `v8 panel ${id} should be present`);
+    assert.ok(html.includes(`data-tab="${id}"`), `navigation should link to ${id}`);
   });
+
+  // Preserved features from the previous release.
+  PRESERVED_PANELS.forEach((id) => {
+    assert.ok(html.includes(`id="${id}"`), `preserved panel ${id} should be present`);
+    assert.ok(html.includes(`data-tab="${id}"`), `navigation should link to ${id}`);
+  });
+
   assert.ok(html.includes('id="checkin-form"'), 'page should contain the check-in form');
   assert.ok(html.includes('id="reset"'), 'page should contain the reset button');
+
+  // Bilingual support and the server-backed storage bridge.
+  assert.ok(html.includes('setLanguage') || html.includes('/v8.js'), 'language switching should be loaded');
+  assert.ok(html.includes('/v8-bridge.js'), 'page should load the storage bridge');
+  assert.ok(html.includes('/panel-health.js'), 'page should load the health panel module');
 }
 
 async function checkAssets() {
-  const assets = ['/styles.css', '/app.js', '/bmi.js'];
+  const assets = ['/v8.css', '/health.css', '/v8.js', '/v8-bridge.js', '/panel-health.js', '/bmi.js'];
   for (const asset of assets) {
     const res = await fetch(`${BASE}${asset}`);
     assert.strictEqual(res.status, 200, `GET ${asset} should return 200`);
     const body = await res.text();
     assert.ok(!/wellness/i.test(body), `${asset} must not contain the word "Wellness"`);
   }
+
+  // The migrated stylesheet and script must still carry the v8 feature set.
+  const v8Js = await (await fetch(`${BASE}/v8.js`)).text();
+  ['setLanguage', 'renderPlan', 'renderLeads', 'generateWithAI', 'backupJSON'].forEach((symbol) => {
+    assert.ok(v8Js.includes(symbol), `v8.js should still define ${symbol}`);
+  });
 }
 
 async function checkHealthEndpoints() {
@@ -142,10 +180,21 @@ async function checkHealthEndpoints() {
 
   const plainHealth = await fetch(`${BASE}/health?check=1`);
   assert.strictEqual(plainHealth.status, 200, 'GET /health with a query should return 200');
+
+  const aiStatus = await fetch(`${BASE}/api/ai/status`);
+  assert.strictEqual(aiStatus.status, 200, 'GET /api/ai/status should return 200');
+  const aiBody = await aiStatus.json();
+  assert.strictEqual(typeof aiBody.configured, 'boolean', 'AI status should report configuration');
+
+  const state = await fetch(`${BASE}/api/state`, { headers: { Accept: 'application/json' } });
+  assert.strictEqual(state.status, 200, 'GET /api/state should return 200');
+  const stateBody = await state.json();
+  assert.strictEqual(stateBody.ok, true);
+  assert.strictEqual(typeof stateBody.data, 'object', 'state should return a data object');
 }
 
 async function checkServerBehaviour() {
-  const versionedAsset = await fetch(`${BASE}/styles.css?v=2`);
+  const versionedAsset = await fetch(`${BASE}/v8.css?v=2`);
   assert.strictEqual(versionedAsset.status, 200, 'a versioned asset request should return 200');
 
   const missingRes = await fetch(`${BASE}/does-not-exist`);

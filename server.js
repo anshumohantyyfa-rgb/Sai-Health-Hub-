@@ -18,6 +18,34 @@ const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 60;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LIST_LIMIT = 100;
 const CLIENT_COOKIE = 'shh_cid';
+
+// Generic per-browser app state (the migrated panels' 16 collections).
+const MAX_STATE_BODY_BYTES = 512 * 1024;
+const MAX_STATE_VALUE_BYTES = 400 * 1024;
+const MAX_STATE_ITEMS = 2000;
+const STATE_KEYS = new Set([
+  'language',
+  'plan',
+  'content',
+  'leads',
+  'metrics',
+  'creative',
+  'customers',
+  'checkins',
+  'mediaRefs',
+  'idDocs',
+  'idReviews',
+  'masterProfiles',
+  'businessContacts',
+  'followups',
+  'consultations',
+  'consentEvents',
+  'qaChecks'
+]);
+
+// Optional AI integration (v8 Content Studio). Configured through Settings.
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const AI_TIMEOUT_MS = 25000;
 const CLIENT_ID_PATTERN = /^[a-f0-9]{48}$/;
 
 const store = createStore();
@@ -322,6 +350,255 @@ function handleStorageInfo(req, res) {
   });
 }
 
+function handleGetState(req, res) {
+  const clientId = clientIdFor(req, res);
+  const raw = store.stateAll(clientId);
+  const data = {};
+  Object.keys(raw).forEach((key) => {
+    try {
+      data[key] = JSON.parse(raw[key]);
+    } catch (err) {
+      data[key] = raw[key];
+    }
+  });
+  sendJson(res, 200, { ok: true, data, keys: Object.keys(data), storage: store.kind });
+}
+
+function validateStateValue(key, value) {
+  if (key === 'language') {
+    if (typeof value !== 'string' || !/^[a-z]{2}$/.test(value)) {
+      return 'Language must be a two-letter code.';
+    }
+    return null;
+  }
+  if (!Array.isArray(value)) {
+    return `The "${key}" collection must be an array.`;
+  }
+  if (value.length > MAX_STATE_ITEMS) {
+    return `The "${key}" collection holds too many items.`;
+  }
+  const supported = value.every(
+    (item) =>
+      item === null ||
+      typeof item === 'string' ||
+      typeof item === 'number' ||
+      typeof item === 'boolean' ||
+      (typeof item === 'object' && !Array.isArray(item))
+  );
+  if (!supported) {
+    return `The "${key}" collection contains an unsupported item.`;
+  }
+  let encoded;
+  try {
+    encoded = JSON.stringify(value);
+  } catch (err) {
+    return `The "${key}" collection is not valid JSON.`;
+  }
+  if (encoded.length > MAX_STATE_VALUE_BYTES) {
+    return `The "${key}" collection is too large to store.`;
+  }
+  return null;
+}
+
+async function handlePutState(req, res) {
+  const clientId = clientIdFor(req, res);
+
+  if (isRateLimited(clientId)) {
+    sendJson(res, 429, { error: 'Too many saves. Please wait a moment.' }, { 'Retry-After': '60' });
+    return;
+  }
+
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    sendJson(res, 415, { error: 'Content-Type must be application/json.' });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req, MAX_STATE_BODY_BYTES);
+  } catch (err) {
+    const code = err && err.code;
+    if (code === 'PAYLOAD_TOO_LARGE') {
+      sendJson(res, 413, { error: 'Request body is too large.' });
+    } else if (code === 'INVALID_JSON') {
+      sendJson(res, 400, { error: 'Request body must be valid JSON.' });
+    } else {
+      sendJson(res, 400, { error: 'Could not read the request body.' });
+    }
+    return;
+  }
+
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    sendJson(res, 400, { error: 'Request body must be a JSON object.' });
+    return;
+  }
+
+  const key = typeof body.key === 'string' ? body.key : '';
+  if (!STATE_KEYS.has(key)) {
+    sendJson(res, 400, { error: 'Unknown data collection.' });
+    return;
+  }
+
+  const problem = validateStateValue(key, body.value);
+  if (problem) {
+    sendJson(res, 400, { error: problem });
+    return;
+  }
+
+  store.stateSet(clientId, key, JSON.stringify(body.value));
+  sendJson(res, 200, { ok: true, key });
+}
+
+function aiStatus() {
+  return {
+    ok: true,
+    configured: Boolean(process.env.GEMINI_API_KEY),
+    provider: 'gemini',
+    model: AI_MODEL
+  };
+}
+
+function briefField(value, max) {
+  return typeof value === 'string' ? value.slice(0, max) : '';
+}
+
+function buildAiPrompt(body) {
+  const parts = [
+    'You are the creative assistant inside Sai Health Hub, a bilingual (English and Odia) health-habit coaching app for Khordha.',
+    'Write factual, compliant, non-medical marketing copy. Never promise cures, guaranteed weight loss or medical outcomes.',
+    'Return strict JSON only, with any of these keys: headline, body, cta, caption, hashtags, visual_direction, reel_script.'
+  ];
+  const kind = briefField(body.kind, 40);
+  const language = briefField(body.language, 10);
+  const topic = briefField(body.topic, 200);
+  const headline = briefField(body.headline, 400);
+  const message = briefField(body.body, 1200);
+  const cta = briefField(body.cta, 200);
+  const footer = briefField(body.footer, 200);
+  const brief = briefField(body.brief, 1200);
+
+  if (kind) parts.push(`Format requested: ${kind}.`);
+  if (language) parts.push(`Language for the copy: ${language}.`);
+  if (topic) parts.push(`Topic: ${topic}.`);
+  if (headline) parts.push(`Current headline: ${headline}.`);
+  if (message) parts.push(`Current message: ${message}.`);
+  if (cta) parts.push(`Current call to action: ${cta}.`);
+  if (footer) parts.push(`Footer text: ${footer}.`);
+  if (brief) parts.push(`Creative brief: ${brief}.`);
+  return parts.join('\n');
+}
+
+async function callGemini(apiKey, prompt) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(AI_MODEL)}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1400 }
+        }),
+        signal: controller.signal
+      }
+    );
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail =
+        payload && payload.error && payload.error.message
+          ? String(payload.error.message).slice(0, 300)
+          : `Gemini returned ${response.status}.`;
+      const failure = new Error(detail);
+      failure.status = response.status === 429 ? 429 : 502;
+      failure.publicMessage = detail;
+      throw failure;
+    }
+
+    const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+    const parts =
+      candidates[0] && candidates[0].content && Array.isArray(candidates[0].content.parts)
+        ? candidates[0].content.parts
+        : [];
+    const text = parts
+      .map((part) => (typeof part.text === 'string' ? part.text : ''))
+      .join('')
+      .trim();
+
+    if (!text) {
+      const failure = new Error('empty response');
+      failure.status = 502;
+      failure.publicMessage = 'The AI returned an empty response. Try again.';
+      throw failure;
+    }
+
+    return { ok: true, text, provider: 'gemini', model: AI_MODEL };
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      const failure = new Error('timeout');
+      failure.status = 504;
+      failure.publicMessage = 'The AI request timed out. Try a shorter brief.';
+      throw failure;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function handleGenerate(req, res) {
+  const clientId = clientIdFor(req, res);
+
+  if (isRateLimited(clientId)) {
+    sendJson(res, 429, { error: 'Too many AI requests. Please wait a moment.' }, { 'Retry-After': '60' });
+    return;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    sendJson(res, 503, {
+      error:
+        'AI text generation is not configured yet. Add GEMINI_API_KEY to this app\u2019s environment to enable it.',
+      configured: false
+    });
+    return;
+  }
+
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    sendJson(res, 415, { error: 'Content-Type must be application/json.' });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req, MAX_BODY_BYTES * 4);
+  } catch (err) {
+    const code = err && err.code;
+    if (code === 'PAYLOAD_TOO_LARGE') {
+      sendJson(res, 413, { error: 'Request body is too large.' });
+    } else {
+      sendJson(res, 400, { error: 'Request body must be valid JSON.' });
+    }
+    return;
+  }
+
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    sendJson(res, 400, { error: 'Request body must be a JSON object.' });
+    return;
+  }
+
+  try {
+    const result = await callGemini(apiKey, buildAiPrompt(body));
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, err.status || 502, { error: err.publicMessage || 'AI generation failed.' });
+  }
+}
+
 const server = http.createServer((req, res) => {
   const pathname = pathnameOf(req.url || '/');
   const method = req.method || 'GET';
@@ -367,6 +644,41 @@ const server = http.createServer((req, res) => {
         return;
       }
       handleStorageInfo(req, res);
+      return;
+    }
+
+    if (pathname === '/api/state') {
+      if (method === 'GET' || method === 'HEAD') {
+        handleGetState(req, res);
+        return;
+      }
+      if (method === 'PUT' || method === 'POST') {
+        handlePutState(req, res).catch(() => {
+          sendJson(res, 500, { error: 'Could not save this change.' });
+        });
+        return;
+      }
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD, PUT, POST' });
+      return;
+    }
+
+    if (pathname === '/api/ai/status') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      sendJson(res, 200, aiStatus());
+      return;
+    }
+
+    if (pathname === '/api/generate') {
+      if (method !== 'POST') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+        return;
+      }
+      handleGenerate(req, res).catch(() => {
+        sendJson(res, 500, { error: 'AI generation failed.' });
+      });
       return;
     }
 
