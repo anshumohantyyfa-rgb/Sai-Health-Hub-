@@ -50,6 +50,8 @@ const AI_TIMEOUT_MS = 25000;
 // No secret and no billing are involved, and the call happens server-side only.
 const FREE_AI_URL = process.env.FREE_AI_URL || 'https://text.pollinations.ai/openai';
 const FREE_AI_MODEL = process.env.FREE_AI_MODEL || 'openai';
+// The keyless tier answers once per cooldown window per IP and signals it with HTTP 402.
+const FREE_AI_COOLDOWN_SECONDS = 45;
 const AI_KEYLESS_DISABLED = String(process.env.AI_KEYLESS_DISABLED || '').toLowerCase() === 'true';
 const CLIENT_ID_PATTERN = /^[a-f0-9]{48}$/;
 
@@ -619,11 +621,17 @@ async function callPollinations(prompt) {
             : payload.error.message
           : '';
       const failure = new Error(String(rawDetail || `free provider ${response.status}`).slice(0, 200));
-      failure.status = response.status === 429 ? 429 : 502;
-      failure.publicMessage =
-        response.status === 429
-          ? 'The free AI service is rate-limiting requests right now. Wait a minute, then press Generate again.'
-          : `The free AI service did not answer correctly (HTTP ${response.status}). Your brief is unchanged, so try again in a moment.`;
+      if (response.status === 402 || response.status === 429) {
+        const retryAfter = freeRetryAfter(payload, rawDetail);
+        failure.status = 429;
+        failure.retryAfter = retryAfter;
+        failure.publicMessage =
+          `The free AI service allows one generation every ${FREE_AI_COOLDOWN_SECONDS} seconds. ` +
+          `Try again in ${retryAfter}s, or add a free GEMINI_API_KEY in Settings for a higher limit.`;
+      } else {
+        failure.status = 502;
+        failure.publicMessage = `The free AI service did not answer correctly (HTTP ${response.status}). Your brief is unchanged, so try again in a moment.`;
+      }
       throw failure;
     }
 
@@ -657,6 +665,21 @@ async function callPollinations(prompt) {
   }
 }
 
+function freeRetryAfter(payload, detail) {
+  const candidates = [
+    payload && payload.retryAfter,
+    payload && payload.error && payload.error.retryAfter,
+    payload && payload.error && payload.error.details && payload.error.details.retryAfter
+  ];
+  for (const value of candidates) {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.ceil(seconds), 120);
+  }
+  const match = /retry after\s+(\d+)\s*s/i.exec(String(detail || ''));
+  if (match) return Math.min(Number(match[1]), 120);
+  return FREE_AI_COOLDOWN_SECONDS;
+}
+
 async function generateAiText(apiKey, prompt) {
   const attempts = [];
   if (apiKey) {
@@ -666,11 +689,27 @@ async function generateAiText(apiKey, prompt) {
       attempts.push(`gemini: ${err.publicMessage || err.message}`);
     }
   }
+
   if (!AI_KEYLESS_DISABLED) {
-    try {
-      return await callPollinations(prompt);
-    } catch (err) {
-      attempts.push(`free: ${err.publicMessage || err.message}`);
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await callPollinations(prompt);
+      } catch (err) {
+        lastError = err;
+        // A short cooldown is worth waiting out; a long one is reported instead.
+        const waitable =
+          err && err.status === 429 && Number.isFinite(err.retryAfter) && err.retryAfter <= 12;
+        if (!waitable || attempt === 1) break;
+        await new Promise((resolve) => setTimeout(resolve, err.retryAfter * 1000));
+      }
+    }
+    if (lastError) {
+      attempts.push(`free: ${lastError.publicMessage || lastError.message}`);
+      if (lastError.status === 429) {
+        lastError.attempts = attempts;
+        throw lastError;
+      }
     }
   }
   const failure = new Error('every AI provider failed');
@@ -729,10 +768,17 @@ async function handleGenerate(req, res) {
     const result = await generateAiText(apiKey, buildAiPrompt(body));
     sendJson(res, 200, result);
   } catch (err) {
-    sendJson(res, err.status || 502, {
-      error: err.publicMessage || 'AI generation failed. Please try again in a moment.',
-      ...(Array.isArray(err.attempts) && err.attempts.length ? { attempts: err.attempts } : {})
-    });
+    const failure = {
+      error: err.publicMessage || 'AI generation failed. Please try again in a moment.'
+    };
+    if (Number.isFinite(err.retryAfter)) failure.retryAfter = err.retryAfter;
+    if (Array.isArray(err.attempts) && err.attempts.length) failure.attempts = err.attempts;
+    sendJson(
+      res,
+      err.status || 502,
+      failure,
+      Number.isFinite(err.retryAfter) ? { 'Retry-After': String(err.retryAfter) } : undefined
+    );
   }
 }
 
