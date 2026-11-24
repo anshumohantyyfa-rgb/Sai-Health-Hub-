@@ -57,8 +57,26 @@ async function main() {
     assert.strictEqual(healthRes.status, 200, 'GET /healthz should return 200');
     assert.deepStrictEqual(await healthRes.json(), { status: 'ok' });
 
+    // The hosting ingress reserves GET /healthz, so the same payload must also be
+    // reachable on these aliases, plus tolerant of trailing slashes and query strings.
+    const healthSlash = await fetch(`${BASE}/healthz/`);
+    assert.strictEqual(healthSlash.status, 200, 'GET /healthz/ should return 200');
+
+    const apiHealth = await fetch(`${BASE}/api/health`);
+    assert.strictEqual(apiHealth.status, 200, 'GET /api/health should return 200');
+    assert.deepStrictEqual(await apiHealth.json(), { status: 'ok' });
+
+    const plainHealth = await fetch(`${BASE}/health?check=1`);
+    assert.strictEqual(plainHealth.status, 200, 'GET /health with a query should return 200');
+
+    const versionedAsset = await fetch(`${BASE}/styles.css?v=2`);
+    assert.strictEqual(versionedAsset.status, 200, 'a versioned asset request should return 200');
+
     const missingRes = await fetch(`${BASE}/does-not-exist`);
     assert.strictEqual(missingRes.status, 404, 'unknown paths should return 404');
+
+    const postRes = await fetch(`${BASE}/`, { method: 'POST' });
+    assert.strictEqual(postRes.status, 405, 'non-GET methods should return 405');
 
     console.log('smoke test passed');
   } finally {

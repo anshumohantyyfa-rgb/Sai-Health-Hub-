@@ -25,8 +25,26 @@ function send(res, status, body, headers) {
   res.end(body);
 }
 
-function resolveFile(urlPath) {
-  const decoded = decodeURIComponent(urlPath.split('?')[0]);
+// Health endpoint. /healthz is the canonical path, but the hosting ingress reserves
+// GET /healthz, so the same payload is also served on non-reserved aliases.
+const HEALTH_PATHS = new Set(['/healthz', '/health', '/api/health']);
+
+function pathnameOf(rawUrl) {
+  try {
+    const pathname = new URL(rawUrl, 'http://localhost').pathname.replace(/\/+$/, '');
+    return pathname === '' ? '/' : pathname;
+  } catch (err) {
+    return '/';
+  }
+}
+
+function resolveFile(pathname) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch (err) {
+    return null;
+  }
   const relative = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
   const target = path.resolve(PUBLIC_DIR, relative);
   // Prevent path traversal outside the public directory.
@@ -42,12 +60,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === '/healthz') {
+  const pathname = pathnameOf(req.url || '/');
+
+  if (HEALTH_PATHS.has(pathname)) {
     send(res, 200, JSON.stringify({ status: 'ok' }), { 'Content-Type': 'application/json' });
     return;
   }
 
-  const filePath = resolveFile(req.url || '/');
+  const filePath = resolveFile(pathname);
   if (!filePath) {
     send(res, 400, 'Bad Request');
     return;
