@@ -190,7 +190,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-    padding-bottom: 6px;
+    padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 8px);
   }
 
   .m-mod-card {
@@ -207,6 +207,8 @@
     color: var(--ink, #183126);
     font: inherit;
     text-align: left;
+    /* Keep a focused card clear of the fixed bottom bar. */
+    scroll-margin-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px);
   }
 
   .m-mod-card:active {

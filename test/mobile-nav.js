@@ -157,9 +157,14 @@ async function checkViewport(browser, viewport) {
   assert.deepStrictEqual(report.offenders, [], `${viewport.name}: All Modules overflows the right edge`);
 
   // 5. A card opens the real module panel, and the bottom bar keeps working.
-  await page.locator('.m-mod-card', { hasText: 'BMI Guide' }).click();
+  const bmiCard = page.locator('.m-mod-card', { hasText: 'BMI Guide' });
+  await bmiCard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await bmiCard.click();
   await page.waitForSelector('#bmi-guide.active', { state: 'visible' });
-  assert.ok(await page.locator('#bmi-value').count(), `${viewport.name}: BMI Guide did not render`);
+  assert.ok(
+    await page.locator('#bmi-guide h2').isVisible(),
+    `${viewport.name}: BMI Guide panel did not render`
+  );
   assert.ok(
     await page.locator('.m-bottomnav .m-tab[data-tab="overview"]').isVisible(),
     `${viewport.name}: bottom nav disappeared after navigation`
