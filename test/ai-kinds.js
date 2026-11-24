@@ -206,9 +206,14 @@ async function main() {
       limited.status >= 400 && limited.status < 600,
       `a provider quota error should surface as an error, got ${limited.status}`
     );
+    // The user-facing message stays actionable while the provider's own reason is
+    // carried in attempts, so a quota problem is diagnosable without leaking keys.
+    const reason = [limited.json && limited.json.error]
+      .concat((limited.json && limited.json.attempts) || [])
+      .join(' ');
     assert.ok(
-      limited.json && /quota|exceeded/i.test(String(limited.json.error)),
-      `the provider reason should be shown: ${limited.json && limited.json.error}`
+      /quota|exceeded/i.test(reason),
+      `the provider reason should be surfaced to the owner: ${reason}`
     );
     assert.ok(!limited.json.text, 'a failed generation must never return fabricated content');
     console.log('provider error mapping OK');
