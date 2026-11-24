@@ -217,8 +217,8 @@ async function main() {
     });
     assert.strictEqual(wrongType.status, 415, 'a non-JSON content type should be refused');
 
-    const noTopic = await generate(BASE, { kind: 'poster', topic: '', brief: 'x' });
-    assert.strictEqual(noTopic.status, 400, 'an empty topic should be rejected before calling out');
+    const notAnObject = await generate(BASE, []);
+    assert.strictEqual(notAnObject.status, 400, 'a non-object JSON body should be rejected');
 
     // 6. An unreachable provider must fail honestly, never fake content.
     await waitForServer(dead, DEAD_BASE, 20000);
