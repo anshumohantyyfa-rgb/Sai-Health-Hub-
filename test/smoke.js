@@ -120,9 +120,9 @@ async function checkPageMarkup() {
   // BMI defaults are pre-filled and pre-rendered, so 0 is never shown.
   assert.ok(html.includes('value="170"'), 'height input should default to 170');
   assert.ok(html.includes('value="70"'), 'weight input should default to 70');
-  assert.ok(html.includes('id="bmi-value">24.2<'), 'page should render the 24.2 default result');
+  assert.ok(/id="bmi-value"[^>]*>24\.2</.test(html), 'page should render the 24.2 default result');
   assert.ok(
-    html.includes('id="bmi-category">Healthy weight<'),
+    /id="bmi-category"[^>]*>Healthy weight</.test(html),
     'page should render the default category'
   );
   assert.ok(html.includes('/bmi.js'), 'page should load the BMI module');
