@@ -145,7 +145,7 @@ function parseCreative(label, json) {
 }
 
 async function main() {
-  await new Promise((resolve) => fake.listen(FAKE_PORT, '127.0.0.1', resolve));
+  await new Promise((resolve) => fake.listen(FAKE_PORT, '0.0.0.0', resolve));
   const app = startApp();
   try {
     await waitReady(app);
