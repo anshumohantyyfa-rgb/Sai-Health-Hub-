@@ -133,8 +133,8 @@ function saveMasterIdProfile(){let ref=$('masterIdRef').value.trim(),name=$('mas
 
 // Business Desk: local contact CRM, consent evidence, due follow-ups and bookings.
 function recordConsentEvent(contactId,action,evidence){let a=get('consentEvents');a.unshift({id:Date.now()+Math.random(),contactId,action,evidence:evidence||'',timestamp:new Date().toISOString()});set('consentEvents',a)}
-function saveBusinessContact(){let name=$('bdName').value.trim(),phone=$('bdPhone').value.replace(/\D/g,'');if(!name||phone.length<10){alert('Enter a name and a valid phone number.');return}let consent=$('bdConsent').value;if(consent==='Yes'&&!$('bdConsentEvidence').value.trim()){alert('Record where/how explicit opt-in was received.');return}let a=get('businessContacts'),old=a.find(x=>x.phone===phone),x={id:old?.id||Date.now(),name,phone,language:$('bdLang').value,type:$('bdType').value,consent,consentEvidence:$('bdConsentEvidence').value.trim(),notes:$('bdNotes').value.trim(),optedOut:old?.optedOut||false,updatedAt:new Date().toISOString()};a=a.filter(y=>y.id!==x.id);a.unshift(x);set('businessContacts',a);if(consent==='Yes'&&!old?.consent)recordConsentEvent(x.id,'Opt-in',x.consentEvidence);else if(consent==='Yes'&&old?.consentEvidence!==x.consentEvidence)recordConsentEvent(x.id,'Opt-in evidence updated',x.consentEvidence);$('bdName').value=$('bdPhone').value=$('bdConsentEvidence').value=$('bdNotes').value='';renderBusinessDesk();alert('Contact saved to the app server store.');}
-function renderBusinessDesk(){let a=get('businessContacts'),opts=a.map(x=>`<option value="${x.id}">${esc(x.name)} · ${esc(x.phone)}</option>`).join('');['fuContact','bookContact'].forEach(id=>{let el=$(id);if(el){let old=el.value;el.innerHTML=opts||'<option value="">No contacts yet</option>';if(a.some(x=>String(x.id)===old))el.value=old}});let c=$('businessContactList');if(c)c.innerHTML=a.length?a.map(x=>`<div class="item"><b>${esc(x.name)}</b> · ${esc(x.phone)} <span class="pill">${esc(x.type)}</span><div class="muted">${esc(x.language)} · Follow-up consent: ${x.consent==='Yes'&&!x.optedOut?'Yes':'No'}${x.consentEvidence?' · Evidence: '+esc(x.consentEvidence):''}</div><div>${esc(x.notes||'No notes')}</div><div class="actions"><button class="btn secondary" onclick="convertContactToCustomer(${x.id})">Mark customer</button><button class="btn secondary" onclick="draftContactWhatsApp(${x.id})">Draft WhatsApp</button><button class="btn secondary" onclick="recordOptOut(${x.id})">Record STOP</button><button class="btn danger" onclick="deleteBusinessContact(${x.id})">Delete</button></div></div>`).join(''):'No contacts saved yet.';let ce=get('consentEvents');if($('consentEventList'))$('consentEventList').innerHTML=ce.length?ce.slice(0,100).map(e=>`<div class="item"><b>${esc(a.find(c=>c.id===e.contactId)?.name||'Contact')}</b> · ${esc(e.action)}<div class="muted">${esc(e.evidence)} · ${esc(new Date(e.timestamp).toLocaleString())}</div></div>`).join(''):'No consent events recorded.';let f=get('followups').sort((x,y)=>x.date.localeCompare(y.date));if($('followupList'))$('followupList').innerHTML=f.length?f.map(x=>{let z=a.find(c=>c.id===x.contactId);return `<div class="item"><b>${esc(z?.name||x.contactName||'Enquiry')} · ${esc(x.date)}</b> <span class="pill">${esc(x.status)}</span><div>${esc(x.purpose)} · ${esc(x.note||'')}</div><div class="actions"><button class="btn secondary" onclick="completeFollowup(${x.id})">Mark complete</button>${z&&z.consent==='Yes'&&!z.optedOut&&!x.requiresConsent?`<button class="btn secondary" onclick="draftContactWhatsApp(${z.id})">Prepare message</button>`:''}</div></div>`}).join(''):'No follow-ups scheduled.';let b=get('consultations').sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time));if($('consultationList'))$('consultationList').innerHTML=b.length?b.map(x=>`<div class="item"><b>${esc(a.find(c=>c.id===x.contactId)?.name||'Deleted contact')} · ${esc(x.date)} ${esc(x.time)}</b><div>${esc(x.mode)} · ${esc(x.duration)} · ${esc(x.agenda)}</div><div class="actions"><button class="btn secondary" onclick="bookingWhatsApp(${x.id})">Prepare reminder</button><button class="btn secondary" onclick="completeBooking(${x.id})">Mark completed</button></div></div>`).join(''):'No consultations booked.';}
+function saveBusinessContact(){let name=$('bdName').value.trim(),phone=$('bdPhone').value.replace(/\D/g,'');if(!name||phone.length<10){alert('Enter a name and a valid phone number.');return}let consent=$('bdConsent').value;if(consent==='Yes'&&!$('bdConsentEvidence').value.trim()){alert('Record where/how explicit opt-in was received.');return}let a=get('businessContacts'),old=a.find(x=>x.phone===phone),x={id:old?.id||Date.now(),name,phone,language:$('bdLang').value,type:$('bdType').value,consent,consentEvidence:$('bdConsentEvidence').value.trim(),birthday:((($('bdBirthday'))||{}).value||''),notes:$('bdNotes').value.trim(),optedOut:old?.optedOut||false,updatedAt:new Date().toISOString()};a=a.filter(y=>y.id!==x.id);a.unshift(x);set('businessContacts',a);if(consent==='Yes'&&!old?.consent)recordConsentEvent(x.id,'Opt-in',x.consentEvidence);else if(consent==='Yes'&&old?.consentEvidence!==x.consentEvidence)recordConsentEvent(x.id,'Opt-in evidence updated',x.consentEvidence);$('bdName').value=$('bdPhone').value=$('bdConsentEvidence').value=$('bdNotes').value='';renderBusinessDesk();alert('Contact saved to the app server store.');}
+function renderBusinessDesk(){let a=get('businessContacts'),opts=a.map(x=>`<option value="${x.id}">${esc(x.name)} · ${esc(x.phone)}</option>`).join('');['fuContact','bookContact'].forEach(id=>{let el=$(id);if(el){let old=el.value;el.innerHTML=opts||'<option value="">No contacts yet</option>';if(a.some(x=>String(x.id)===old))el.value=old}});let c=$('businessContactList');if(c)c.innerHTML=a.length?a.map(x=>`<div class="item"><b>${esc(x.name)}</b> · ${esc(x.phone)} <span class="pill">${esc(x.type)}</span><div class="muted">${esc(x.language)} · Follow-up consent: ${x.consent==='Yes'&&!x.optedOut?'Yes':'No'}${x.consentEvidence?' · Evidence: '+esc(x.consentEvidence):''}</div><div>${esc(x.notes||'No notes')}</div><div class="actions"><button class="btn secondary" onclick="convertContactToCustomer(${x.id})">Mark customer</button><button class="btn secondary" onclick="draftContactWhatsApp(${x.id})">Draft WhatsApp</button><button class="btn secondary" onclick="recordOptOut(${x.id})">Record STOP</button><button class="btn danger" onclick="deleteBusinessContact(${x.id})">Delete</button></div></div>`).join(''):'No contacts saved yet.';let ce=get('consentEvents');if($('consentEventList'))$('consentEventList').innerHTML=ce.length?ce.slice(0,100).map(e=>`<div class="item"><b>${esc(a.find(c=>c.id===e.contactId)?.name||'Contact')}</b> · ${esc(e.action)}<div class="muted">${esc(e.evidence)} · ${esc(new Date(e.timestamp).toLocaleString())}</div></div>`).join(''):'No consent events recorded.';let f=get('followups').sort((x,y)=>x.date.localeCompare(y.date));if($('followupList'))$('followupList').innerHTML=f.length?f.map(x=>{let z=a.find(c=>c.id===x.contactId);return `<div class="item"><b>${esc(z?.name||x.contactName||'Enquiry')} · ${esc(x.date)}</b> <span class="pill">${esc(x.status)}</span><div>${esc(x.purpose)} · ${esc(x.note||'')}</div><div class="actions"><button class="btn secondary" onclick="completeFollowup(${x.id})">Mark complete</button>${z&&z.consent==='Yes'&&!z.optedOut&&!x.requiresConsent?`<button class="btn secondary" onclick="draftContactWhatsApp(${z.id})">Prepare message</button>`:''}</div></div>`}).join(''):'No follow-ups scheduled.';let b=get('consultations').sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time));if($('consultationList'))$('consultationList').innerHTML=b.length?b.map(x=>`<div class="item"><b>${esc(a.find(c=>c.id===x.contactId)?.name||'Deleted contact')} · ${esc(x.date)} ${esc(x.time)}</b><div>${esc(x.mode)} · ${esc(x.duration)} · ${esc(x.agenda)}</div><div class="actions"><button class="btn secondary" onclick="bookingWhatsApp(${x.id})">Prepare reminder</button><button class="btn secondary" onclick="completeBooking(${x.id})">Mark completed</button></div></div>`).join(''):'No consultations booked.';try{renderAutomation()}catch(e){}}
 function saveFollowup(){let id=Number($('fuContact').value),c=get('businessContacts').find(x=>x.id===id),date=$('fuDate').value;if(!c||!date){alert('Select a contact and follow-up date.');return}if(c.optedOut||c.consent!=='Yes'){alert('Follow-up cannot be scheduled for a promotional contact without current explicit consent. Record service replies only within the original enquiry.');return}let a=get('followups');a.unshift({id:Date.now(),contactId:id,date,purpose:$('fuPurpose').value,note:$('fuNote').value.trim(),status:'Pending',createdAt:new Date().toISOString()});set('followups',a);$('fuNote').value='';renderBusinessDesk();}
 function completeFollowup(id){let a=get('followups');a=a.map(x=>x.id===id?{...x,status:'Completed',completedAt:new Date().toISOString()}:x);set('followups',a);renderBusinessDesk()}
 function saveConsultation(){let id=Number($('bookContact').value),c=get('businessContacts').find(x=>x.id===id),date=$('bookDate').value,time=$('bookTime').value;if(!c||!date||!time){alert('Select a contact, date and time.');return}let a=get('consultations');a.unshift({id:Date.now(),contactId:id,date,time,mode:$('bookMode').value,duration:$('bookDuration').value,agenda:$('bookAgenda').value.trim(),status:'Booked',createdAt:new Date().toISOString()});set('consultations',a);$('bookAgenda').value='';renderBusinessDesk();alert('Consultation saved locally. Send confirmation manually.');}
@@ -213,3 +213,102 @@ function copyWhatsappDraft(){
 }
 function saveAIResult(){if(!latestAIText)return;let a=get('creative');a.unshift({id:Date.now(),topic:$('crTopic').value,lang:$('crLang').value,ai:true,aiResult:latestAIText,createdAt:new Date().toISOString()});set('creative',a);alert('AI result saved to the app server store. Include it in your next JSON backup.');}
 
+
+/* ---- Phase 3 automation board: follow-ups, birthdays, reminders, campaigns, reports ---- */
+function autoEl(id){return document.getElementById(id)}
+function autoEsc(v){return String(v===undefined||v===null?'':v).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
+function autoDays(days){if(days===null||days===undefined)return 'no date set';var d=Number(days);if(isNaN(d))return 'no date set';if(d<0)return Math.abs(d)+' day'+(Math.abs(d)===1?'':'s')+' overdue';if(d===0)return 'due today';return 'in '+d+' day'+(d===1?'':'s')}
+function autoBlock(head,rows,empty){var body=rows&&rows.length?rows.join(''):'<div class="muted">'+autoEsc(empty)+'</div>';return '<div class="muted">'+head+'</div>'+body}
+function autoPersist(key,value){try{set(key,value)}catch(e){}return fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,value:value})}).then(function(){renderAutomation()}).catch(function(){renderAutomation()})}
+function renderAutomation(){
+  var contacts=[];try{contacts=get('businessContacts')||[]}catch(e){contacts=[]}
+  if(!Array.isArray(contacts))contacts=[];
+  var sel=autoEl('remContact');
+  if(sel){var keep=sel.value;sel.innerHTML='<option value="">No specific contact</option>'+contacts.map(function(c){return '<option value="'+autoEsc(c.id)+'">'+autoEsc(c.name)+'</option>'}).join('');if(keep)sel.value=keep}
+  fetch('/api/automation',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+    if(!d||!d.automation){var box=autoEl('autoFollowups');if(box)box.innerHTML='<div class="muted">Automation data is unavailable right now. Reload to try again.</div>';return}
+    var a=d.automation;
+    var f=autoEl('autoFollowups');
+    if(f){
+      var fRows=a.followups.items.slice(0,10).map(function(x){
+        return '<div class="item"><b>'+autoEsc(x.name)+'</b> · '+autoEsc(x.purpose)+' <span class="pill">'+autoEsc(autoDays(x.daysAway))+'</span>'+(x.blocked?' <span class="pill">consent needed</span>':'')+'<div class="muted">'+autoEsc(x.dueDate||'No date')+(x.note?' · '+autoEsc(x.note):'')+'</div></div>';
+      });
+      f.innerHTML=autoBlock(a.followups.counts.pending+' pending · '+a.followups.counts.overdue+' overdue · '+a.followups.counts.today+' due today',fRows,'No follow-ups scheduled.');
+    }
+    var b=autoEl('autoBirthdays');
+    if(b){
+      var bRows=a.birthdays.items.filter(function(x){return x.inWindow}).map(function(x){
+        return '<div class="item"><b>'+autoEsc(x.name)+'</b> · '+autoEsc(x.date)+' <span class="pill">'+autoEsc(autoDays(x.daysAway))+'</span>'+(x.turning?'<div class="muted">Turns '+autoEsc(x.turning)+'</div>':'')+'<div class="actions">'+(x.consent?'<button class="btn secondary" type="button" onclick="draftContactWhatsApp('+autoEsc(x.id)+')">Prepare wish</button>':'<span class="muted small">Record opt-in before sending a wish</span>')+'</div></div>';
+      });
+      b.innerHTML=autoBlock(a.birthdays.withinWindow.length+' in the next '+a.birthdays.windowDays+' days',bRows,'No birthdays recorded in this window. Add a birthday in Contact manager.');
+    }
+    var r=autoEl('autoReminders');
+    if(r){
+      var rRows=a.reminders.items.slice(0,10).map(function(x){
+        return '<div class="item"><b>'+autoEsc(x.title)+'</b> <span class="pill">'+autoEsc(autoDays(x.daysAway))+'</span><div class="muted">'+autoEsc(x.kind)+(x.name?' · '+autoEsc(x.name):'')+' · '+autoEsc(x.dueDate||'No date')+(x.note?' · '+autoEsc(x.note):'')+'</div><div class="actions"><button class="btn secondary" type="button" onclick="completeReminder(\''+autoEsc(x.id)+'\')">Mark done</button></div></div>';
+      });
+      r.innerHTML=autoBlock(a.reminders.counts.pending+' pending · '+a.reminders.counts.overdue+' overdue · '+a.reminders.counts.today+' due today',rRows,'No reminders scheduled.');
+    }
+    var c=autoEl('autoCampaigns');
+    if(c){
+      var cRows=a.campaigns.items.slice(0,10).map(function(x){
+        return '<div class="item"><b>'+autoEsc(x.name)+'</b> <span class="pill">'+autoEsc(x.status)+'</span><div class="muted">'+autoEsc(x.channel)+' · '+autoEsc(x.startDate||'No start')+(x.endDate?' to '+autoEsc(x.endDate):'')+(x.audience?' · '+autoEsc(x.audience):'')+'</div><div class="actions"><button class="btn secondary" type="button" onclick="setCampaignStatus(\''+autoEsc(x.id)+'\',\'completed\')">Mark completed</button></div></div>';
+      });
+      c.innerHTML=autoBlock(a.campaigns.counts.active+' active · '+a.campaigns.counts.planned+' planned · '+a.campaigns.counts.completed+' completed',cRows,'No campaigns planned.');
+    }
+    var e=autoEl('autoEngagement');
+    if(e){
+      var eRows=a.engagement.contacts.slice(0,8).map(function(x){
+        var last=x.lastTouch?(autoEsc(x.lastTouch)+' ('+autoEsc(x.lastTouchDays)+' days ago)'):'no recorded activity';
+        return '<div class="item"><b>'+autoEsc(x.name)+'</b> <span class="pill">'+autoEsc(String(x.level).replace('_',' '))+'</span><div class="muted">Score '+autoEsc(x.score)+' · last activity '+last+'</div><div class="muted">'+autoEsc(x.signals.followupsCompleted)+' follow-ups completed · '+autoEsc(x.signals.consultations)+' consultations · '+autoEsc(x.signals.consentEvents)+' consent events</div></div>';
+      });
+      var head=a.engagement.counts.active+' active · '+a.engagement.counts.cooling+' cooling · '+a.engagement.counts.dormant+' dormant · '+a.engagement.customers.stale+' of '+a.engagement.customers.total+' customers without a check-in in 14 days';
+      e.innerHTML=autoBlock(head,eRows,'No contacts to score yet.');
+    }
+    var rp=autoEl('autoReports');
+    if(rp){
+      var periods=[a.reports.daily,a.reports.weekly,a.reports.monthly];
+      var measures=[['New contacts','newContacts'],['Follow-ups completed','followupsCompleted'],['Follow-ups scheduled','followupsScheduled'],['Consultations','consultations'],['Health check-ins','checkins'],['Campaigns started','campaignsStarted'],['Reminders due','remindersDue']];
+      rp.innerHTML='<table class="small" style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Measure</th>'+periods.map(function(p){return '<th>'+autoEsc(p.label)+'</th>'}).join('')+'</tr></thead><tbody>'+
+        measures.map(function(row){return '<tr><td>'+autoEsc(row[0])+'</td>'+periods.map(function(p){return '<td style="text-align:center">'+autoEsc(p[row[1]])+'</td>'}).join('')+'</tr>'}).join('')+
+        '</tbody></table><p class="muted small">Calculated from records saved on the server since '+autoEsc(a.reports.monthly.since)+'. Delivery, opens and clicks are not measured because this app does not send messages.</p>';
+    }
+  }).catch(function(){var box=autoEl('autoFollowups');if(box)box.innerHTML='<div class="muted">Could not load the automation board. Check your connection and reload.</div>'});
+}
+function saveReminder(){
+  var title=((autoEl('remTitle')||{}).value||'').trim();
+  var date=(autoEl('remDate')||{}).value||'';
+  if(!title||!date){alert('Enter a reminder and a due date.');return}
+  var item={id:Date.now(),contactId:(autoEl('remContact')||{}).value||'',title:title,kind:(autoEl('remKind')||{}).value||'General',dueDate:date,note:((autoEl('remNote')||{}).value||'').trim(),status:'Pending',createdAt:new Date().toISOString()};
+  var arr=[];try{arr=get('reminders')||[]}catch(e){arr=[]}
+  if(!Array.isArray(arr))arr=[];
+  arr.unshift(item);
+  autoPersist('reminders',arr);
+  if(autoEl('remTitle'))autoEl('remTitle').value='';
+  if(autoEl('remNote'))autoEl('remNote').value='';
+}
+function completeReminder(id){
+  var arr=[];try{arr=get('reminders')||[]}catch(e){arr=[]}
+  if(!Array.isArray(arr))arr=[];
+  var next=arr.map(function(x){return String(x.id)===String(id)?Object.assign({},x,{status:'Done',completedAt:new Date().toISOString()}):x});
+  autoPersist('reminders',next);
+}
+function saveCampaign(){
+  var name=((autoEl('campName')||{}).value||'').trim();
+  var start=(autoEl('campStart')||{}).value||'';
+  if(!name||!start){alert('Enter a campaign name and a start date.');return}
+  var item={id:Date.now(),name:name,channel:(autoEl('campChannel')||{}).value||'WhatsApp status',startDate:start,endDate:(autoEl('campEnd')||{}).value||'',audience:((autoEl('campAudience')||{}).value||'').trim(),notes:((autoEl('campNotes')||{}).value||'').trim(),status:'Planned',createdAt:new Date().toISOString()};
+  var arr=[];try{arr=get('campaigns')||[]}catch(e){arr=[]}
+  if(!Array.isArray(arr))arr=[];
+  arr.unshift(item);
+  autoPersist('campaigns',arr);
+  if(autoEl('campName'))autoEl('campName').value='';
+  if(autoEl('campNotes'))autoEl('campNotes').value='';
+}
+function setCampaignStatus(id,status){
+  var arr=[];try{arr=get('campaigns')||[]}catch(e){arr=[]}
+  if(!Array.isArray(arr))arr=[];
+  var next=arr.map(function(x){return String(x.id)===String(id)?Object.assign({},x,{status:status==='completed'?'Completed':'Planned',updatedAt:new Date().toISOString()}):x});
+  autoPersist('campaigns',next);
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){try{renderAutomation()}catch(e){}})}else{try{renderAutomation()}catch(e){}}

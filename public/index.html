@@ -290,6 +290,7 @@
   <div class="row"><div><label>Language</label><select id="bdLang"><option>Odia</option><option>English</option><option>Hindi</option><option>Bilingual</option></select></div><div><label>Relationship</label><select id="bdType"><option>Enquiry</option><option>Prospect</option><option>Customer</option><option>Partner / referral</option></select></div></div>
   <label>Follow-up permission</label><select id="bdConsent"><option value="No">No consent</option><option value="Yes">Explicit opt-in received</option></select>
   <label>Consent source / evidence (e.g. WhatsApp message date)</label><input id="bdConsentEvidence" placeholder="Record where and when permission was given">
+  <label>Birthday (optional, for reminders)</label><input id="bdBirthday" type="date">
   <label>Notes (non-sensitive only)</label><textarea id="bdNotes" placeholder="Requested information / preferred contact time"></textarea>
   <button class="btn" onclick="saveBusinessContact()">Save contact</button>
  </div>
@@ -322,6 +323,34 @@
 <div class="card" id="businessContactList" style="margin-top:10px"></div>
 <h3 style="margin-top:16px">Follow-up queue</h3><div class="card" id="followupList"></div><h3 style="margin-top:16px">Consent audit trail</h3><div class="card" id="consentEventList"></div>
 <h3 style="margin-top:16px">Consultation calendar</h3><div class="card" id="consultationList"></div>
+<h3 style="margin-top:16px">Automation board</h3>
+<div class="notice">Follow-ups, birthdays and reminders below are calculated from the records saved on this app's server. They are shown for you to act on manually: this app does not send WhatsApp messages, SMS or notifications, and it does not track delivery, opens or clicks.</div>
+<div class="grid" style="margin-top:12px">
+ <div class="card"><h3>Follow-ups needing attention</h3><div id="autoFollowups" class="small"></div></div>
+ <div class="card"><h3>Birthdays ahead</h3><div id="autoBirthdays" class="small"></div></div>
+</div>
+<div class="grid" style="margin-top:12px">
+ <div class="card"><h3>Scheduled reminders</h3>
+  <label>Contact (optional)</label><select id="remContact"></select>
+  <label>Reminder</label><input id="remTitle" placeholder="e.g. Call about the evening session">
+  <div class="row"><div><label>Due date</label><input id="remDate" type="date"></div><div><label>Type</label><select id="remKind"><option>Follow-up</option><option>Birthday</option><option>Consultation</option><option>Festival / offer</option><option>General</option></select></div></div>
+  <label>Note</label><input id="remNote" placeholder="Optional detail">
+  <button class="btn" type="button" onclick="saveReminder()">Save reminder</button>
+  <div id="autoReminders" class="small" style="margin-top:10px"></div>
+ </div>
+ <div class="card"><h3>Campaign planner</h3>
+  <label>Campaign name</label><input id="campName" placeholder="e.g. Morning walk week">
+  <div class="row"><div><label>Start date</label><input id="campStart" type="date"></div><div><label>End date</label><input id="campEnd" type="date"></div></div>
+  <div class="row"><div><label>Channel</label><select id="campChannel"><option>WhatsApp status</option><option>WhatsApp broadcast (manual)</option><option>Instagram Reel</option><option>Instagram post</option><option>Facebook post</option><option>In-person session</option></select></div><div><label>Audience</label><input id="campAudience" placeholder="e.g. consented prospects"></div></div>
+  <label>Notes</label><input id="campNotes" placeholder="Goal and content plan">
+  <button class="btn" type="button" onclick="saveCampaign()">Save campaign</button>
+  <div id="autoCampaigns" class="small" style="margin-top:10px"></div>
+ </div>
+</div>
+<h3 style="margin-top:16px">Customer engagement</h3>
+<div class="card" id="autoEngagement" class="small"></div>
+<h3 style="margin-top:16px">Business reports · daily, weekly and monthly</h3>
+<div class="card" id="autoReports" class="small"></div>
 </section>
 <section id="datahosting" class="panel">
 <h2>Data, backup & hosting readiness</h2>

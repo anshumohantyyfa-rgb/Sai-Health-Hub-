@@ -33,6 +33,7 @@
     'renderCustomerProgress',
     'renderMediaList',
     'renderBusinessDesk',
+    'renderAutomation',
     'renderQAChecks',
     'renderFollowups',
     'renderConsultations',
