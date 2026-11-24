@@ -20,10 +20,16 @@
     --m-bottomnav-h: 64px;
   }
 
-  html,
-  body {
+  /* Clip horizontal overflow on the viewport itself. Body must NOT become its
+     own scroll container, or scrollIntoView/window scrolling stop working and
+     the last rows stay trapped under the fixed bottom bar. */
+  html {
     overflow-x: hidden;
+  }
+
+  body {
     max-width: 100%;
+    overflow-x: clip;
   }
 
   body {
