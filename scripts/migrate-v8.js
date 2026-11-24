@@ -4,13 +4,16 @@
  * Migrates source/Sai_Health_Hub_Automation_v8.html into the AppJet project.
  *
  * The v8 markup, CSS and JavaScript are extracted VERBATIM (never retyped) so
- * no working feature is lost. The only textual change is the AI status/health
- * probe path: v8 asks /api/health for { configured }, while this project keeps
- * /api/health as a plain { status: 'ok' } health probe, so the two AI calls are
- * pointed at /api/ai/status (same { configured } contract).
+ * no working feature is lost. Extraction is marker-based (<style>, <script>,
+ * <main>, ...) rather than line-number based, so it cannot silently slice the
+ * wrong region.
  *
- * The existing BMI check-in, BMI guide and services features are added back as
- * three extra panels so nothing from the previous release is lost.
+ * The only textual change is the AI status probe: v8 asks /api/health for
+ * { configured }, while this project keeps /api/health as a plain health probe,
+ * so those two calls are pointed at /api/ai/status (same { configured } shape).
+ *
+ * The existing Health Check-in (BMI), BMI Guide and Services features are added
+ * back as three extra panels so nothing from the previous release is lost.
  *
  * Run with: node scripts/migrate-v8.js
  */
@@ -22,23 +25,53 @@ const ROOT = path.join(__dirname, '..');
 const SOURCE = path.join(ROOT, 'source', 'Sai_Health_Hub_Automation_v8.html');
 const OUT_DIR = path.join(ROOT, 'public');
 
-const lines = fs.readFileSync(SOURCE, 'utf8').split('\n');
-const slice = (from, to) => lines.slice(from - 1, to).join('\n');
+const raw = fs.readFileSync(SOURCE, 'utf8');
 
-// 1..35 head, 36 <body>, 37-42 header, 43 wrap, 44-46 nav, 47-330 main,
-// 331 footer, 333 qrcode CDN, 334-495 main script, 497-505 AI script, 506 </body></html>
-const css = slice(10, 33); // inside <style>
-const mainJs = slice(335, 494); // inside the main <script>
-const aiJs = slice(498, 503); // inside the AI <script>
-const header = slice(37, 42);
-const nav = slice(44, 46);
-const panels = slice(48, 329);
-const footer = slice(331, 331);
-const qrScript = slice(333, 333);
+function between(text, startMarker, endMarker, from) {
+  const start = text.indexOf(startMarker, from || 0);
+  if (start === -1) {
+    throw new Error(`Migration aborted: missing start marker ${startMarker}`);
+  }
+  const contentStart = start + startMarker.length;
+  const end = text.indexOf(endMarker, contentStart);
+  if (end === -1) {
+    throw new Error(`Migration aborted: missing end marker ${endMarker}`);
+  }
+  return text.slice(contentStart, end).trim();
+}
 
-const v8Js = [mainJs, aiJs]
-  .join('\n')
-  .replace(/\/api\/health/g, '/api/ai/status');
+const css = between(raw, '<style>', '</style>');
+const headerInner = between(raw, '<header>', '</header>');
+const navInner = between(raw, '<nav id="nav">', '</nav>');
+const panels = between(raw, '<main>', '</main>');
+
+const footerStart = raw.indexOf('<footer');
+const footerEnd = raw.indexOf('</footer>', footerStart);
+if (footerStart === -1 || footerEnd === -1) {
+  throw new Error('Migration aborted: footer not found');
+}
+const footer = raw.slice(footerStart, footerEnd + '</footer>'.length).trim();
+
+// Script tags: the external qrcode CDN tag is preserved, and the two inline
+// blocks are the app script and the AI prompt script, in document order.
+const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
+const externalTags = [];
+const inlineBlocks = [];
+let match;
+while ((match = scriptRe.exec(raw)) !== null) {
+  if (/\bsrc=/.test(match[1])) {
+    externalTags.push(match[0]);
+  } else if (match[2].trim()) {
+    inlineBlocks.push(match[2]);
+  }
+}
+
+const qrScript = externalTags.filter((tag) => /qrcode/i.test(tag)).join('\n') || externalTags[0] || '';
+const mainJs = inlineBlocks[0] || '';
+const aiJs = inlineBlocks[1] || '';
+
+// v8's AI status probe expects { configured }; /api/ai/status provides it.
+const v8Js = [mainJs, aiJs].join('\n').replace(/\/api\/health/g, '/api/ai/status');
 
 // --- sanity checks: fail loudly instead of writing a broken bundle ----------
 const checks = [
@@ -49,16 +82,18 @@ const checks = [
   [aiJs.includes('generateWithAI'), 'AI script should define generateWithAI'],
   [panels.includes('id="overview"'), 'markup should contain the overview panel'],
   [panels.includes('id="backup"'), 'markup should contain the backup panel'],
+  [panels.includes('id="metrics"'), 'markup should contain the metrics panel'],
   [qrScript.includes('qrcode'), 'qrcode CDN tag should be preserved'],
-  [header.includes('Sai Health Hub') || header.includes('brand'), 'header should carry the brand'],
-  [!fs.existsSync(path.join(OUT_DIR, 'index.html')) || true, 'ok']
+  [navInner.includes('data-tab="overview"'), 'navigation should keep the overview tab'],
+  [/Sai Health Hub/.test(headerInner), 'header should carry the brand name'],
+  [/Healthy Habits\. Better Living\.\./.test(headerInner), 'header should carry the approved tagline']
 ];
 checks.forEach(([ok, message]) => {
   if (!ok) {
     throw new Error(`Migration aborted: ${message}`);
   }
 });
-if (/wellness/i.test(css + v8Js + panels + header + footer)) {
+if (/wellness/i.test(css + v8Js + panels + headerInner + footer + navInner)) {
   throw new Error('Migration aborted: the source still contains the prohibited word');
 }
 
@@ -70,7 +105,7 @@ const EXTRA_NAV =
 
 const EXTRA_PANELS = `<section id="checkin" class="panel">
 <h2>Health Check-in</h2>
-<p class="muted">Measure height and weight to see your BMI with a clear category explanation. Every saved check-in is stored in your secure account, so your history follows you to another device.</p>
+<p class="muted">Measure height and weight to see your BMI with a clear category explanation. Every saved check-in is stored on the server, so your history is there when you return.</p>
 <div class="grid">
 <div class="card">
 <h3>Your measurements</h3>
@@ -133,6 +168,11 @@ const EXTRA_PANELS = `<section id="checkin" class="panel">
 </div>
 </section>`;
 
+const headerHtml = headerInner.replace(
+  '<div class="wrap">',
+  '<div class="wrap">\n<div class="brand-tag">Healthy Habits. Better Living..</div>'
+);
+
 const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -145,8 +185,13 @@ const html = `<!DOCTYPE html>
 <link rel="stylesheet" href="/health.css">
 </head>
 <body>
-${header.replace('<div class="wrap">', '<div class="wrap">\n<div class="brand-tag">Healthy Habits. Better Living..</div>')}
-${nav.replace('</nav>', `${EXTRA_NAV}\n</nav>`)}
+<header>
+${headerHtml}
+</header>
+<nav id="nav">
+${navInner}
+${EXTRA_NAV}
+</nav>
 <main>
 ${panels}
 ${EXTRA_PANELS}
@@ -170,4 +215,4 @@ console.log('migration complete');
 console.log(`v8.css      ${css.length} bytes`);
 console.log(`v8.js       ${v8Js.length} bytes`);
 console.log(`index.html  ${html.length} bytes`);
-console.log(`header kept ${header.length} bytes`);
+console.log(`panels      ${(panels.match(/<section /g) || []).length} migrated + 3 preserved`);
