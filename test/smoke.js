@@ -143,6 +143,10 @@ async function checkPageMarkup() {
   assert.ok(html.includes('id="reset"'), 'page should contain the reset button');
 
   // Bilingual support and the server-backed storage bridge.
+  assert.ok(
+    html.includes('id="langEn"') && html.includes('id="langOr"'),
+    'page should include the English and Odia language buttons'
+  );
   assert.ok(html.includes('setLanguage') || html.includes('/v8.js'), 'language switching should be loaded');
   assert.ok(html.includes('/v8-bridge.js'), 'page should load the storage bridge');
   assert.ok(html.includes('/panel-health.js'), 'page should load the health panel module');
