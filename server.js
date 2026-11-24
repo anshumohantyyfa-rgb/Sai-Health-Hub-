@@ -352,11 +352,10 @@ function handleDeleteCheckin(req, res, id) {
 }
 
 function handleStorageInfo(req, res) {
-  sendJson(res, 200, {
-    driver: store.kind,
-    durable: store.kind !== 'memory',
-    records: store.total()
-  });
+  const info = store.info
+    ? store.info()
+    : { driver: store.kind, durable: store.kind !== 'memory', records: store.total() };
+  sendJson(res, 200, info);
 }
 
 function handleGetState(req, res) {
@@ -1099,6 +1098,22 @@ function handleOwnerReminders(req, res) {
   sendJson(res, 200, { ok: true, items, generatedAt: new Date().toISOString() }, NO_STORE);
 }
 
+function handleOwnerExport(req, res) {
+  const data = store.exportAll();
+  sendJson(
+    res,
+    200,
+    {
+      app: 'Sai Health Hub',
+      exportedAt: new Date().toISOString(),
+      storage: store.info ? store.info() : { driver: store.kind },
+      checkins: data.checkins,
+      state: data.state
+    },
+    NO_STORE
+  );
+}
+
 function handleOwnerSummary(req, res) {
   const counts = OwnerRecords.counts();
   const leads = OwnerRecords.list('leads') || [];
@@ -1364,6 +1379,16 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (pathname === '/api/owner/export') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      if (!requireOwner(req, res)) return;
+      handleOwnerExport(req, res);
+      return;
+    }
+
     if (pathname === '/api/owner/reminders') {
       if (method !== 'GET' && method !== 'HEAD') {
         send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
@@ -1473,10 +1498,26 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Sai Health Hub listening on http://${HOST}:${PORT}`);
-  console.log(`Check-in storage driver: ${store.kind}`);
-});
+function startServer() {
+  server.listen(PORT, HOST, () => {
+    console.log(`Sai Health Hub listening on http://${HOST}:${PORT}`);
+    const info = store.info ? store.info() : { driver: store.kind };
+    console.log(
+      `Check-in storage driver: ${info.driver}` +
+        (info.survivesRedeploy
+          ? ' (durable across redeploys)'
+          : ' (local: erased when the app is redeployed)')
+    );
+  });
+}
+
+// Wait for a remote database to hydrate before accepting traffic, so the first
+// request never sees an empty mirror.
+if (store.ready && typeof store.ready.then === 'function') {
+  store.ready.then(startServer, startServer);
+} else {
+  startServer();
+}
 
 function shutdown() {
   store.close();

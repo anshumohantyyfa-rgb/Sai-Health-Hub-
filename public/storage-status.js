@@ -39,11 +39,27 @@
 
     const parts = [];
     if (storage && storage.driver) {
-      const where =
-        storage.driver === 'memory'
-          ? 'memory only — records are lost on restart'
-          : `server-side ${storage.driver} store — survives page reloads, erased when the app is redeployed`;
-      parts.push(`Records: ${where}${typeof storage.records === 'number' ? ` (${storage.records} stored items)` : ''}`);
+      const count =
+        typeof storage.records === 'number' ? ` (${storage.records} stored items)` : '';
+      let where;
+      if (storage.driver === 'memory') {
+        where = 'memory only — records are lost on restart';
+      } else if (storage.survivesRedeploy) {
+        where = `server-side ${storage.driver} store — durable, survives redeploys`;
+      } else {
+        where = `server-side ${storage.driver} store — survives page reloads, erased when the app is redeployed`;
+      }
+      let line = `Records: ${where}${count}`;
+      if (storage.supabaseConfigured && storage.supabaseActive === false) {
+        line += ' · the remote database was unreachable, so this run uses local storage';
+      }
+      if (storage.pending) {
+        line += ` · ${storage.pending} change(s) still syncing`;
+      }
+      if (storage.lastError) {
+        line += ` · last sync error: ${storage.lastError}`;
+      }
+      parts.push(line);
     }
 
     try {
@@ -59,7 +75,12 @@
       parts.push('AI: status unavailable');
     }
 
-    const tone = storage && storage.driver === 'memory' ? 'warn' : 'ok';
+    const tone =
+      storage &&
+      (storage.driver === 'memory' ||
+        (storage.supabaseConfigured && storage.supabaseActive === false))
+        ? 'warn'
+        : 'ok';
     setText(parts.join(' · '), tone);
   }
 
