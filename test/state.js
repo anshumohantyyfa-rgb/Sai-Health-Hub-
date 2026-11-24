@@ -97,6 +97,24 @@ async function checkStateRoundTrip() {
   const wrongShape = await put(alice, { key: 'leads', value: 'not-an-array' });
   assert.strictEqual(wrongShape.status, 400, 'collections must be arrays');
 
+  // v8 stores a few collections as one object (for example the active creative
+  // brief). Those used to throw inside the validator and came back as 400.
+  const objectShape = await put(alice, {
+    key: 'creative',
+    value: { headline: 'Small habits. Better days.', cta: 'Start today', lang: 'en' }
+  });
+  assert.strictEqual(objectShape.status, 200, 'object-shaped collections should be accepted');
+  const afterObject = await (
+    await alice('/api/state', { headers: { Accept: 'application/json' } })
+  ).json();
+  assert.strictEqual(
+    afterObject.data.creative.headline,
+    'Small habits. Better days.',
+    'object state should persist'
+  );
+  const primitiveShape = await put(alice, { key: 'creative', value: 42 });
+  assert.strictEqual(primitiveShape.status, 400, 'primitives should still be rejected');
+
   const tooMany = await put(alice, { key: 'leads', value: new Array(2001).fill({ id: 1 }) });
   assert.strictEqual(tooMany.status, 400, 'oversized collections should be rejected');
 
