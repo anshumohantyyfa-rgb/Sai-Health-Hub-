@@ -46,6 +46,18 @@
     if (hydrating) {
       return;
     }
+    // Skip empty or non-serialisable writes. setLanguage() can be called with no
+    // argument during a re-render, which stores the literal string "undefined";
+    // sending that up would overwrite good data with a value the server rejects.
+    if (
+      rawValue === undefined ||
+      rawValue === null ||
+      rawValue === '' ||
+      rawValue === 'undefined' ||
+      rawValue === 'null'
+    ) {
+      return;
+    }
     pending.set(key, rawValue);
     if (timer) {
       clearTimeout(timer);
@@ -95,7 +107,9 @@
     });
     if (typeof window.setLanguage === 'function') {
       try {
-        window.setLanguage();
+        // Pass the stored language: setLanguage() with no argument persists the
+        // string "undefined" and breaks the saved language.
+        window.setLanguage(localStorage.getItem('shh_language') || 'en');
       } catch (err) {
         console.warn('Could not re-apply language', err && err.message);
       }
@@ -147,8 +161,9 @@
 
       // Push data that only exists in this browser up to the server.
       localKeys().forEach((key) => {
-        if (!serverKeys.includes(key.slice(PREFIX.length))) {
-          queue(key, localStorage.getItem(key) || '');
+        const raw = localStorage.getItem(key);
+        if (!serverKeys.includes(key.slice(PREFIX.length)) && raw) {
+          queue(key, raw);
         }
       });
       if (pending.size) {
