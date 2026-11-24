@@ -22,6 +22,8 @@ const MAX_LIST_LIMIT = 100;
 const CLIENT_COOKIE = 'shh_cid';
 
 // Generic per-browser app state (the migrated panels' 16 collections).
+const { computeAutomation } = require('./lib/automation');
+
 const MAX_STATE_BODY_BYTES = 512 * 1024;
 const MAX_STATE_VALUE_BYTES = 400 * 1024;
 const MAX_STATE_ITEMS = 2000;
@@ -41,6 +43,8 @@ const STATE_KEYS = new Set([
   'businessContacts',
   'followups',
   'consultations',
+  'reminders',
+  'campaigns',
   'consentEvents',
   'qaChecks'
 ]);
@@ -1330,6 +1334,27 @@ const server = http.createServer((req, res) => {
         return;
       }
       handleStorageInfo(req, res);
+      return;
+    }
+
+    // Phase 3 automation board: derived from records already stored server-side.
+    // Read-only; nothing here sends messages or notifications.
+    if (pathname === '/api/automation') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        return;
+      }
+      const automation = computeAutomation({
+        contacts: OwnerRecords.list('businessContacts') || [],
+        followups: OwnerRecords.list('followups') || [],
+        consultations: OwnerRecords.list('consultations') || [],
+        consentEvents: OwnerRecords.list('consentEvents') || [],
+        reminders: OwnerRecords.list('reminders') || [],
+        campaigns: OwnerRecords.list('campaigns') || [],
+        customers: OwnerRecords.list('customers') || [],
+        checkins: OwnerRecords.list('checkins') || []
+      });
+      sendJson(res, 200, { ok: true, automation }, NO_STORE);
       return;
     }
 
