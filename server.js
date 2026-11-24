@@ -812,9 +812,9 @@ function sessionCookie(req, token, maxAgeSeconds) {
   return `${OWNER_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
 }
 
-function ownerSessionPayload(req) {
+function ownerSessionPayload(req, token) {
   return {
-    authenticated: OwnerAuth.validSession(ownerToken(req)),
+    authenticated: OwnerAuth.validSession(token || ownerToken(req)),
     passwordConfigured: OwnerAuth.passwordConfigured(),
     source: OwnerAuth.passwordSource(),
     sessionTtlSeconds: OwnerAuth.sessionTtlSeconds()
@@ -896,7 +896,7 @@ async function handleOwnerLogin(req, res) {
   sendJson(
     res,
     200,
-    { ok: true, session: ownerSessionPayload(req) },
+    { ok: true, session: ownerSessionPayload(req, token) },
     Object.assign({ 'Set-Cookie': sessionCookie(req, token, OwnerAuth.sessionTtlSeconds()) }, NO_STORE)
   );
 }
