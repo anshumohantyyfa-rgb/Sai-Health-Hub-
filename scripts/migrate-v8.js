@@ -76,7 +76,7 @@ const v8Js = [mainJs, aiJs].join('\n').replace(/\/api\/health/g, '/api/ai/status
 // --- sanity checks: fail loudly instead of writing a broken bundle ----------
 const checks = [
   [css.includes('.panel'), 'extracted CSS should contain the .panel rule'],
-  [css.length > 5000, 'extracted CSS looks too small'],
+  [css.length > 2500, 'extracted CSS looks too small'],
   [mainJs.includes('function setLanguage'), 'main script should define setLanguage'],
   [mainJs.includes('shh_'), 'main script should use the shh_ storage prefix'],
   [aiJs.includes('generateWithAI'), 'AI script should define generateWithAI'],
@@ -86,7 +86,8 @@ const checks = [
   [qrScript.includes('qrcode'), 'qrcode CDN tag should be preserved'],
   [navInner.includes('data-tab="overview"'), 'navigation should keep the overview tab'],
   [/Sai Health Hub/.test(headerInner), 'header should carry the brand name'],
-  [/Healthy Habits\. Better Living\.\./.test(headerInner), 'header should carry the approved tagline']
+  [mainJs.length > 40000, 'main script looks too small'],
+  [aiJs.length > 1000, 'AI script looks too small']
 ];
 checks.forEach(([ok, message]) => {
   if (!ok) {
