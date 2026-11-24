@@ -191,7 +191,7 @@ function sanitizeNote(value) {
 }
 
 function sanitizeLang(value) {
-  if (typeof value === 'string' && /^[a-z]{2}(-[a-zA-Z]{2,4})?$/.test(value)) {
+  if (typeof value === 'string' && /^[a-z]{2}(-[a-z]{2,4})?$/i.test(value)) {
     return value.toLowerCase();
   }
   return 'en';

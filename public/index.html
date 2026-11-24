@@ -47,7 +47,7 @@
           </div>
           <ul class="trust">
             <li>Private by design</li>
-            <li>Runs in your browser</li>
+            <li>No account needed</li>
             <li>Guidance you can explain</li>
           </ul>
         </div>
@@ -99,8 +99,8 @@
               <p class="section-eyebrow">Daily check-in</p>
               <h2 id="checkin-title">Calculate your BMI</h2>
               <p class="panel-hint">
-                Pre-filled with the default 170 cm and 70 kg. Everything runs in your browser —
-                nothing is uploaded or stored.
+                Pre-filled with the default 170 cm and 70 kg. Every calculation is saved to your
+                private check-in history on the server — no account needed.
               </p>
             </header>
 
@@ -178,6 +178,16 @@
                   </li>
                 </ul>
               </div>
+            </div>
+
+            <div class="history" id="history" aria-labelledby="history-title">
+              <div class="history-head">
+                <h3 id="history-title">Your recent check-ins</h3>
+                <p class="history-status" id="history-status" role="status" aria-live="polite">
+                  Loading your saved check-ins…
+                </p>
+              </div>
+              <ul class="history-list" id="history-list"></ul>
             </div>
           </div>
         </div>
