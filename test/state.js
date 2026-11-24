@@ -127,7 +127,16 @@ async function checkAiContracts() {
   const statusBody = await status.json();
   assert.strictEqual(statusBody.ok, true);
   assert.strictEqual(typeof statusBody.configured, 'boolean', 'configured must be a boolean');
-  assert.strictEqual(statusBody.provider, 'gemini');
+  assert.strictEqual(
+    statusBody.configured,
+    true,
+    'AI must be usable without a paid key, via the keyless free provider'
+  );
+  assert.ok(
+    ['gemini', 'pollinations'].includes(statusBody.provider),
+    'a known AI provider should be selected'
+  );
+  assert.strictEqual(typeof statusBody.keyless, 'boolean', 'keyless support must be reported');
   assert.ok(statusBody.model, 'the model name should be reported');
 
   const health = await client('/api/health', { headers: { Accept: 'application/json' } });
@@ -140,24 +149,15 @@ async function checkAiContracts() {
   const notAllowed = await client('/api/generate', { method: 'GET' });
   assert.strictEqual(notAllowed.status, 405, 'GET /api/generate should not be allowed');
 
-  if (process.env.GEMINI_API_KEY) {
-    console.log('skipping the unconfigured-AI assertion: GEMINI_API_KEY is set');
-    return;
-  }
-
-  // Without a key the endpoint must fail honestly instead of faking output.
-  const generate = await client('/api/generate', {
+  // Guard rails that do not depend on the external provider being reachable.
+  // Real generation (and the honest 502 when the provider is down) is covered by
+  // test/ai.js, which exercises the provider chain end to end.
+  const wrongType = await client('/api/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'text/plain', Accept: 'application/json' },
     body: JSON.stringify({ kind: 'poster', topic: 'Morning walks', brief: 'Short and warm' })
   });
-  assert.strictEqual(generate.status, 503, 'generation without a key should return 503');
-  const failure = await generate.json();
-  assert.strictEqual(failure.configured, false);
-  assert.ok(
-    /GEMINI_API_KEY/.test(failure.error),
-    'the error should name the missing environment variable'
-  );
+  assert.strictEqual(wrongType.status, 415, 'a non-JSON content type should be refused');
 }
 
 async function main() {
