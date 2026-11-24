@@ -94,6 +94,25 @@ async function generateReady(base, payload, label) {
   return last;
 }
 
+// The route answers { ok, text, provider, model } and the v8 frontend parses
+// `text` as JSON, so the test must read the same field the UI reads.
+function parseCreative(label, payload) {
+  assert.ok(payload && typeof payload.text === 'string' && payload.text.trim(), `${label}: the AI should return text`);
+  assert.ok(payload.provider, `${label}: the answering provider should be reported`);
+  const clean = payload.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  let data = null;
+  try {
+    data = JSON.parse(clean);
+  } catch {
+    data = null;
+  }
+  assert.ok(
+    data && typeof data === 'object',
+    `${label}: the AI text should be parseable JSON (got: ${String(payload.text).slice(0, 140)})`
+  );
+  return data;
+}
+
 function assertCreative(label, body) {
   assert.ok(body && typeof body === 'object', `${label}: the AI should return structured JSON`);
   assert.ok(
@@ -141,9 +160,10 @@ async function main() {
       'English'
     );
     assert.strictEqual(en.status, 200, `English generation should succeed: ${JSON.stringify(en.json)}`);
-    assertCreative('English', en.json.data);
-    assert.ok(/[A-Za-z]/.test(en.json.data.headline), 'English headline should be Latin script');
-    console.log(`English OK: ${en.json.data.headline}`);
+    const enData = parseCreative('English', en.json);
+    assertCreative('English', enData);
+    assert.ok(/[A-Za-z]/.test(enData.headline), 'English headline should be Latin script');
+    console.log(`English OK: ${enData.headline}`);
 
     // 3. Real Odia generation must come back in Odia script, not English.
     const or = await generateReady(
@@ -158,14 +178,15 @@ async function main() {
       'Odia'
     );
     assert.strictEqual(or.status, 200, `Odia generation should succeed: ${JSON.stringify(or.json)}`);
-    assertCreative('Odia', or.json.data);
-    const odiaText = [or.json.data.headline, or.json.data.body, or.json.data.cta].join(' ');
+    const orData = parseCreative('Odia', or.json);
+    assertCreative('Odia', orData);
+    const odiaText = [orData.headline, orData.body, orData.cta].join(' ');
     assert.ok(/[\u0B00-\u0B7F]/.test(odiaText), 'Odia output should contain Odia script characters');
     assert.ok(
       !/^[\x00-\x7F]*$/.test(odiaText),
       'Odia output should not be plain ASCII English'
     );
-    console.log(`Odia OK: ${or.json.data.headline}`);
+    console.log(`Odia OK: ${orData.headline}`);
 
     // 4. Regeneration produces a fresh result for the same brief.
     const again = await generateReady(
@@ -180,9 +201,10 @@ async function main() {
       'Regeneration'
     );
     assert.strictEqual(again.status, 200, 'regeneration should succeed');
-    assertCreative('Regeneration', again.json.data);
+    const againData = parseCreative('Regeneration', again.json);
+    assertCreative('Regeneration', againData);
     console.log(
-      again.json.data.headline === en.json.data.headline
+      againData.headline === enData.headline
         ? 'Regeneration OK (same wording, fresh call)'
         : 'Regeneration OK (new wording)'
     );
