@@ -46,6 +46,11 @@ const STATE_KEYS = new Set([
 // Optional AI integration (v8 Content Studio). Configured through Settings.
 const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const AI_TIMEOUT_MS = 25000;
+// Keyless free provider, used automatically when no Gemini key is configured.
+// No secret and no billing are involved, and the call happens server-side only.
+const FREE_AI_URL = process.env.FREE_AI_URL || 'https://text.pollinations.ai/openai';
+const FREE_AI_MODEL = process.env.FREE_AI_MODEL || 'openai';
+const AI_KEYLESS_DISABLED = String(process.env.AI_KEYLESS_DISABLED || '').toLowerCase() === 'true';
 const CLIENT_ID_PATTERN = /^[a-f0-9]{48}$/;
 
 const store = createStore();
@@ -451,11 +456,15 @@ async function handlePutState(req, res) {
 }
 
 function aiStatus() {
+  const gemini = Boolean(process.env.GEMINI_API_KEY);
+  const keyless = !AI_KEYLESS_DISABLED;
   return {
     ok: true,
-    configured: Boolean(process.env.GEMINI_API_KEY),
-    provider: 'gemini',
-    model: AI_MODEL
+    configured: gemini || keyless,
+    provider: gemini ? 'gemini' : keyless ? 'pollinations' : 'none',
+    model: gemini ? AI_MODEL : keyless ? FREE_AI_MODEL : null,
+    gemini,
+    keyless
   };
 }
 
@@ -467,7 +476,9 @@ function buildAiPrompt(body) {
   const parts = [
     'You are the creative assistant inside Sai Health Hub, a bilingual (English and Odia) health-habit coaching app for Khordha.',
     'Write factual, compliant, non-medical marketing copy. Never promise cures, guaranteed weight loss or medical outcomes.',
-    'Return strict JSON only, with any of these keys: headline, body, cta, caption, hashtags, visual_direction, reel_script.'
+    'Reply with ONE JSON object and nothing else: no markdown fences, no commentary before or after it.',
+    'Use double quotes for every string value. Allowed keys: headline, body, cta, caption, hashtags, visual_direction, reel_script.',
+    'Always include headline, body and cta. Stay factual and non-medical: no cures, no guaranteed weight loss, no before/after promises, no invented testimonials.'
   ];
   const kind = briefField(body.kind, 40);
   const language = briefField(body.language, 10);
@@ -479,7 +490,13 @@ function buildAiPrompt(body) {
   const brief = briefField(body.brief, 1200);
 
   if (kind) parts.push(`Format requested: ${kind}.`);
-  if (language) parts.push(`Language for the copy: ${language}.`);
+  const languageName =
+    { en: 'English', or: 'Odia written in Odia script (\u0b13\u0b21\u0b3c\u0b3f\u0b06)', hi: 'Hindi written in Devanagari script' }[
+      language
+    ] || (language || '');
+  if (languageName) {
+    parts.push(`Write every value in ${languageName}. Keep the JSON keys themselves in English.`);
+  }
   if (topic) parts.push(`Topic: ${topic}.`);
   if (headline) parts.push(`Current headline: ${headline}.`);
   if (message) parts.push(`Current message: ${message}.`);
@@ -523,10 +540,9 @@ async function callGemini(apiKey, prompt) {
       candidates[0] && candidates[0].content && Array.isArray(candidates[0].content.parts)
         ? candidates[0].content.parts
         : [];
-    const text = parts
-      .map((part) => (typeof part.text === 'string' ? part.text : ''))
-      .join('')
-      .trim();
+    const text = normalizeAiText(
+      parts.map((part) => (typeof part.text === 'string' ? part.text : '')).join('')
+    );
 
     if (!text) {
       const failure = new Error('empty response');
@@ -549,6 +565,124 @@ async function callGemini(apiKey, prompt) {
   }
 }
 
+function normalizeAiText(raw) {
+  let text = typeof raw === 'string' ? raw.trim() : '';
+  if (!text) return '';
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  if (!text.startsWith('{')) {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      const candidate = text.slice(start, end + 1);
+      try {
+        JSON.parse(candidate);
+        text = candidate;
+      } catch (_) {
+        /* the model answered in prose: return it unchanged */
+      }
+    }
+  }
+  return text;
+}
+
+async function callPollinations(prompt) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const response = await fetch(FREE_AI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        model: FREE_AI_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a precise bilingual marketing copywriter for a health-habit coaching business. You answer with a single strict JSON object and nothing else.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.85,
+        max_tokens: 1400,
+        private: true,
+        referrer: 'sai-health-hub'
+      }),
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const rawDetail =
+        payload && payload.error
+          ? typeof payload.error === 'string'
+            ? payload.error
+            : payload.error.message
+          : '';
+      const failure = new Error(String(rawDetail || `free provider ${response.status}`).slice(0, 200));
+      failure.status = response.status === 429 ? 429 : 502;
+      failure.publicMessage =
+        response.status === 429
+          ? 'The free AI service is rate-limiting requests right now. Wait a minute, then press Generate again.'
+          : `The free AI service did not answer correctly (HTTP ${response.status}). Your brief is unchanged, so try again in a moment.`;
+      throw failure;
+    }
+
+    const choices = Array.isArray(payload.choices) ? payload.choices : [];
+    const message = choices[0] && choices[0].message ? choices[0].message : {};
+    const text = normalizeAiText(message.content);
+    if (!text) {
+      const failure = new Error('empty response');
+      failure.status = 502;
+      failure.publicMessage = 'The AI returned an empty response. Press Generate to try again.';
+      throw failure;
+    }
+
+    return {
+      ok: true,
+      text,
+      provider: 'pollinations',
+      model: (payload && typeof payload.model === 'string' && payload.model) || FREE_AI_MODEL,
+      keyless: true
+    };
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      const failure = new Error('timeout');
+      failure.status = 504;
+      failure.publicMessage = 'The AI request timed out. Try a shorter brief, or press Generate again.';
+      throw failure;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function generateAiText(apiKey, prompt) {
+  const attempts = [];
+  if (apiKey) {
+    try {
+      return await callGemini(apiKey, prompt);
+    } catch (err) {
+      attempts.push(`gemini: ${err.publicMessage || err.message}`);
+    }
+  }
+  if (!AI_KEYLESS_DISABLED) {
+    try {
+      return await callPollinations(prompt);
+    } catch (err) {
+      attempts.push(`free: ${err.publicMessage || err.message}`);
+    }
+  }
+  const failure = new Error('every AI provider failed');
+  failure.status = 502;
+  failure.attempts = attempts;
+  failure.publicMessage =
+    'The AI service is unavailable right now, so no content was generated and nothing was posted. ' +
+    'Your brief is still in the form, so press Generate again in a moment.' +
+    (apiKey ? '' : ' Adding GEMINI_API_KEY in Settings gives this app a dedicated quota.');
+  throw failure;
+}
+
 async function handleGenerate(req, res) {
   const clientId = clientIdFor(req, res);
 
@@ -558,7 +692,7 @@ async function handleGenerate(req, res) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey && AI_KEYLESS_DISABLED) {
     sendJson(res, 503, {
       error:
         'AI text generation is not configured yet. Add GEMINI_API_KEY to this app\u2019s environment to enable it.',
@@ -592,10 +726,13 @@ async function handleGenerate(req, res) {
   }
 
   try {
-    const result = await callGemini(apiKey, buildAiPrompt(body));
+    const result = await generateAiText(apiKey, buildAiPrompt(body));
     sendJson(res, 200, result);
   } catch (err) {
-    sendJson(res, err.status || 502, { error: err.publicMessage || 'AI generation failed.' });
+    sendJson(res, err.status || 502, {
+      error: err.publicMessage || 'AI generation failed. Please try again in a moment.',
+      ...(Array.isArray(err.attempts) && err.attempts.length ? { attempts: err.attempts } : {})
+    });
   }
 }
 
