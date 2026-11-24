@@ -164,7 +164,52 @@ $('checkDate').value=new Date().toISOString().slice(0,10);$('fuDate').value=new 
 let latestAIText='';
 async function checkAIStatus(){const el=document.getElementById('aiStatus');el.textContent='Checking secure AI backend…';try{const r=await fetch('/api/ai/status',{headers:{'Accept':'application/json'}});const j=await r.json();if(!r.ok)throw new Error(j.error||'Backend unavailable');el.textContent=j.configured?'AI backend connected · '+(j.model||'AI model')+' ready via '+(j.provider||'server')+'.':'Backend is online, but no AI provider is configured yet.';}catch(e){el.textContent='AI is not connected yet. Open this app through its deployed Node server; a local HTML file cannot call the secure backend. '+e.message;}}
 function aiPrompt(){const lang=document.getElementById('crLang').value;return {kind:document.getElementById('aiKind').value,language:lang,topic:document.getElementById('crTopic').selectedOptions[0].text,headline:document.getElementById('crHeadline').value,body:document.getElementById('crBody').value,cta:document.getElementById('crCta').value,footer:document.getElementById('crFooter').value,brief:document.getElementById('aiBrief').value};}
-async function generateWithAI(){const btn=document.getElementById('aiGenerateBtn'),status=document.getElementById('aiStatus'),out=document.getElementById('aiResult');btn.disabled=true;btn.textContent='Generating…';status.textContent='Sending your creative brief to the AI service…';out.style.display='none';try{const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(aiPrompt())});const j=await r.json();if(!r.ok)throw new Error(j.error||'AI generation failed');latestAIText=j.text||'';if(!latestAIText)throw new Error('The AI returned an empty response.');let data=null;try{const clean=latestAIText.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');data=JSON.parse(clean);}catch(_){}if(data){if(data.headline)document.getElementById('crHeadline').value=data.headline;if(data.body)document.getElementById('crBody').value=data.body;if(data.cta)document.getElementById('crCta').value=data.cta;if(data.caption)document.getElementById('ccopy').value=data.caption;if(data.reel_script){lastReel=data.reel_script;document.getElementById('reelOutput').textContent=data.reel_script;}if(data.kind==='poster'||document.getElementById('aiKind').value!=='reel')makePoster();out.textContent=[data.headline&&'HEADLINE: '+data.headline,data.body&&'MESSAGE: '+data.body,data.cta&&'CALL TO ACTION: '+data.cta,data.caption&&'CAPTION: '+data.caption,data.hashtags&&'HASHTAGS: '+data.hashtags,data.visual_direction&&'AI ART DIRECTION: '+data.visual_direction,data.reel_script&&'REEL SCRIPT:\n'+data.reel_script].filter(Boolean).join('\n\n')||latestAIText;}else{out.textContent=latestAIText;}out.style.display='block';document.getElementById('aiCopyBtn').disabled=false;document.getElementById('aiSaveBtn').disabled=false;status.textContent='AI draft generated. Review and fact-check before publishing; no content was posted or sent.';}catch(e){status.textContent='Could not generate: '+e.message+' Your brief is unchanged, so you can press Generate again.';}finally{btn.disabled=false;btn.textContent='Generate with AI';}}
+async function generateWithAI(){const btn=document.getElementById('aiGenerateBtn'),status=document.getElementById('aiStatus'),out=document.getElementById('aiResult');btn.disabled=true;btn.textContent='Generating…';status.textContent='Sending your creative brief to the AI service…';out.style.display='none';try{const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(aiPrompt())});const j=await r.json();if(!r.ok)throw new Error(j.error||'AI generation failed');latestAIText=j.text||'';if(!latestAIText)throw new Error('The AI returned an empty response.');let data=null;try{const clean=latestAIText.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');data=JSON.parse(clean);}catch(_){}if(data){renderAiExtras(data);if(data.headline)document.getElementById('crHeadline').value=data.headline;if(data.body)document.getElementById('crBody').value=data.body;if(data.cta)document.getElementById('crCta').value=data.cta;if(data.caption)document.getElementById('ccopy').value=data.caption;if(data.reel_script){lastReel=data.reel_script;document.getElementById('reelOutput').textContent=data.reel_script;}if(data.kind==='poster'||document.getElementById('aiKind').value!=='reel')makePoster();out.textContent=[data.headline&&'HEADLINE: '+data.headline,data.body&&'MESSAGE: '+data.body,data.cta&&'CALL TO ACTION: '+data.cta,data.caption&&'CAPTION: '+data.caption,data.hashtags&&'HASHTAGS: '+data.hashtags,data.visual_direction&&'AI ART DIRECTION: '+data.visual_direction,data.reel_script&&'REEL SCRIPT:\n'+data.reel_script].filter(Boolean).join('\n\n')||latestAIText;}else{out.textContent=latestAIText;}out.style.display='block';document.getElementById('aiCopyBtn').disabled=false;document.getElementById('aiSaveBtn').disabled=false;status.textContent='AI draft generated. Review and fact-check before publishing; no content was posted or sent.';}catch(e){status.textContent='Could not generate: '+e.message+' Your brief is unchanged, so you can press Generate again.';}finally{btn.disabled=false;btn.textContent='Generate with AI';}}
 function copyAIResult(){if(latestAIText)copyText(latestAIText)}
+let lastIdeas=[];
+function escAi(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+// Renders AI campaign ideas and the AI WhatsApp message. Content is escaped
+// before it reaches the DOM because it is model output, not trusted markup.
+function renderAiExtras(data){
+  var box=document.getElementById('aiIdeas'),wrap=document.getElementById('aiWhatsappWrap');
+  lastIdeas=(data&&Array.isArray(data.ideas))?data.ideas:[];
+  if(box){
+    if(lastIdeas.length){
+      box.style.display='block';
+      box.innerHTML='<h4 style="margin:6px 0">AI campaign ideas · tap one to load it into your brief</h4>'+lastIdeas.map(function(idea,i){
+        var t=escAi(idea&&idea.title),f=escAi(idea&&idea.format),w=escAi(idea&&idea.why),c=escAi(idea&&idea.caption);
+        return '<div class="card" style="margin:8px 0;padding:10px"><strong>'+t+'</strong>'+(f?' <span class="muted">· '+f+'</span>':'')+(w?'<p class="muted" style="margin:4px 0">'+w+'</p>':'')+(c?'<p style="margin:4px 0">'+c+'</p>':'')+'<button class="btn secondary" type="button" onclick="useIdea('+i+')">Use this idea</button></div>';
+      }).join('');
+      latestAIText=latestAIText+'\n\nCAMPAIGN IDEAS:\n'+lastIdeas.map(function(x,i){return (i+1)+'. '+[x&&x.title,x&&x.format,x&&x.why,x&&x.caption].filter(Boolean).join(' · ')}).join('\n');
+    } else { box.style.display='none'; box.innerHTML=''; }
+  }
+  var wa=(data&&typeof data.whatsapp_message==='string')?data.whatsapp_message.trim():'';
+  if(wrap){
+    if(wa){
+      wrap.style.display='block';
+      var ta=document.getElementById('aiWhatsapp');
+      if(ta)ta.value=wa;
+      var link=document.getElementById('aiWaLink');
+      if(link)link.href='https://wa.me/?text='+encodeURIComponent(wa);
+      latestAIText=latestAIText+'\n\nWHATSAPP MESSAGE:\n'+wa;
+    } else { wrap.style.display='none'; }
+  }
+}
+function useIdea(i){
+  var idea=lastIdeas[i]; if(!idea)return;
+  if(idea.title)document.getElementById('crHeadline').value=String(idea.title).slice(0,70);
+  if(idea.caption){
+    document.getElementById('ccopy').value=idea.caption;
+    document.getElementById('crBody').value=String(idea.caption).slice(0,180);
+  }
+  if(idea.format)document.getElementById('aiBrief').value='Format: '+idea.format+'. '+(idea.why||'');
+  makePoster();
+  var st=document.getElementById('aiStatus');
+  if(st)st.textContent='Idea loaded into your brief. Adjust it, then press Generate with AI or Create poster preview.';
+}
+function copyWhatsappDraft(){
+  var ta=document.getElementById('aiWhatsapp');
+  if(ta&&ta.value.trim())copyText(ta.value);
+}
 function saveAIResult(){if(!latestAIText)return;let a=get('creative');a.unshift({id:Date.now(),topic:$('crTopic').value,lang:$('crLang').value,ai:true,aiResult:latestAIText,createdAt:new Date().toISOString()});set('creative',a);alert('AI result saved to the app server store. Include it in your next JSON backup.');}
 

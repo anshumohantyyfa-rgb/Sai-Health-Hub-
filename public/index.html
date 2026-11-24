@@ -167,11 +167,18 @@
 <div class="card" style="margin-top:12px;border:2px solid #218653">
 <h3>✨ AI Creator · Secure backend</h3>
 <p class="muted">Generate fresh creative copy and production direction with AI. Your brief is sent to the connected AI provider; do not include customer or medical records.</p>
-<label>What should AI create?</label><select id="aiKind"><option value="reel">AI Reel package</option><option value="poster">AI poster content & art direction</option><option value="both">Reel + poster package</option></select>
+<label>What should AI create?</label><select id="aiKind"><option value="reel">AI Reel package</option><option value="poster">AI poster content & art direction</option><option value="both">Reel + poster package</option><option value="whatsapp">AI WhatsApp message</option><option value="ideas">AI campaign ideas</option></select>
 <label>Additional creative direction</label><textarea id="aiBrief" maxlength="1200" placeholder="Example: friendly, family-focused, practical, seasonal campaign for Khordha"></textarea>
 <div class="actions"><button class="btn" id="aiGenerateBtn" onclick="generateWithAI()">Generate with AI</button><button class="btn secondary" onclick="checkAIStatus()">Check AI connection</button></div>
 <div id="aiStatus" class="muted" role="status" aria-live="polite">AI connection not checked. Connect the secure backend to enable generation.</div>
 <div id="aiResult" class="creative-preview item" style="display:none"></div>
+<div id="aiIdeas" class="item" style="display:none"></div>
+<div id="aiWhatsappWrap" style="display:none;margin-top:10px">
+<h4 style="margin:6px 0">WhatsApp message</h4>
+<p class="muted" style="margin:0 0 6px">Prepared text only. Sending is manual — this app does not deliver messages automatically.</p>
+<textarea id="aiWhatsapp" rows="5" maxlength="1200" placeholder="The AI-generated WhatsApp message appears here"></textarea>
+<div class="actions"><button class="btn secondary" type="button" onclick="copyWhatsappDraft()">Copy WhatsApp message</button><a class="btn secondary" id="aiWaLink" href="https://wa.me/?text=" target="_blank" rel="noopener noreferrer">Open WhatsApp to send manually</a></div>
+</div>
 <div class="actions"><button class="btn secondary" id="aiCopyBtn" onclick="copyAIResult()" disabled>Copy AI result</button><button class="btn secondary" id="aiSaveBtn" onclick="saveAIResult()" disabled>Save AI result</button></div>
 </div>
 <div class="card" style="margin-top:12px"><h3>Reel / Short video storyboard</h3><p class="muted">A simple 20–30 second structure with hook, scenes, voice-over and CTA.</p><div id="reelOutput" class="item muted">Choose a topic and tap “Generate Reel script”.</div><div class="actions"><button class="btn secondary" onclick="copyReel()">Copy Reel script</button><button class="btn secondary" onclick="saveCreative()">Save creative draft</button></div></div>

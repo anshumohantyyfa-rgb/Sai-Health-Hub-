@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test/smoke.js && node test/api.js && node test/state.js && node test/owner.js && node test/supabase-store.js",
-    "test:ai": "node test/ai.js"
+    "test:ai": "node test/ai.js && node test/ai-kinds.js"
   },
   "engines": {
     "node": ">=22"
