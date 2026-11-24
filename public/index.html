@@ -13,11 +13,15 @@
 </head>
 <body>
 <div class="m-topbar" id="mTopbar">
-<button class="m-hamburger" id="mMenuBtn" type="button" aria-label="Open all modules" aria-controls="all-modules" aria-expanded="false">
-<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-</button>
+<span class="m-logo" aria-hidden="true">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" fill="#1B7A36"/><path d="M23 9c0 7.4-4.9 11.6-10.1 11.6-2.6 0-4.1-1.5-4.1-3.8C8.8 11.8 13.9 9.2 23 9z" fill="#fff"/><path d="M9.5 24c1.9-5.4 5.2-8.6 9.6-10.6" stroke="#1B7A36" stroke-width="1.7" stroke-linecap="round"/></svg>
+</span>
 <div class="m-brand"><b>Sai Health Hub</b><span>Healthy Habits. Better Living..</span></div>
 <button class="m-lang" id="mLangBtn" type="button" aria-label="Switch language">ଓଡ଼ିଆ</button>
+<button class="m-hamburger" id="mMenuBtn" type="button" aria-label="Open all modules" aria-controls="all-modules" aria-expanded="false">
+<svg class="m-ico-menu" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+<svg class="m-ico-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+</button>
 </div>
 <header>
 <div class="wrap">
@@ -33,10 +37,67 @@
 <button data-tab="owner" data-en="Owner Console" data-or="ମାଲିକ କନସୋଲ">Owner Console</button>
 </nav>
 <section id="all-modules" class="panel" aria-labelledby="all-modules-title">
-<div class="wrap">
+<div class="m-am-sub">
+<span class="m-am-subico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg></span>
 <h2 id="all-modules-title">All Modules</h2>
+</div>
+<div class="wrap">
 <p class="muted m-intro">Every Sai Health Hub module and tab, in one place.</p>
 <div class="m-modules" id="m-modules-grid"></div>
+<button class="m-back-home" id="mBackHome" type="button" data-tab="mHome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span>Back to Home</span></button>
+<div class="m-am-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.4 2.4 4.6-5"/></svg><span>All modules are easily accessible on your mobile device</span></div>
+</div>
+</section>
+<section id="mHome" class="panel m-home" aria-labelledby="mHomeTitle">
+<div class="m-hero">
+<h1 class="m-hero-title" id="mHomeTitle">Your Health<br>Our Priority</h1>
+<svg class="m-hero-art" viewBox="0 0 260 180" fill="none" aria-hidden="true">
+<path d="M214 6c-22 6-34 22-34 44 22-4 32-20 34-44z" fill="#CFE9D6"/>
+<path d="M242 44c-17 4-26 16-26 32 17-3 24-14 26-32z" fill="#DBEFDF"/>
+<path d="M196 96c-14 4-22 13-22 27 14-3 20-12 22-27z" fill="#E4F3E8"/>
+<g>
+<circle cx="86" cy="70" r="17" fill="#F3CBA8"/>
+<path d="M69 68c0-11 8-18 17-18s17 7 17 18c0 4-3 6-5 4-4-3-7-4-12-4s-8 1-12 4c-2 2-5 0-5-4z" fill="#33251C"/>
+<path d="M66 98c3-10 11-15 20-15s17 5 20 15l3 46H63z" fill="#1B7A36"/>
+<path d="M112 92c7 5 11 12 11 19" stroke="#F3CBA8" stroke-width="9" stroke-linecap="round"/>
+<path d="M123 111c2 5 6 7 10 6" stroke="#F3CBA8" stroke-width="8" stroke-linecap="round"/>
+<circle cx="135" cy="116" r="5" fill="#F3CBA8"/>
+</g>
+<g>
+<circle cx="152" cy="76" r="15" fill="#F7D6B6"/>
+<path d="M136 78c0-12 7-19 16-19s16 7 16 19c0 5-2 7-4 5-3-4-7-6-12-6s-9 2-12 6c-2 2-4 0-4-5z" fill="#4A3324"/>
+<path d="M134 102c2-9 9-14 18-14s16 5 18 14l3 42h-42z" fill="#FFFFFF" stroke="#CFE9D6" stroke-width="2"/>
+<path d="M134 106c-6 4-9 10-9 17" stroke="#F7D6B6" stroke-width="8" stroke-linecap="round"/>
+<path d="M125 124c-1 4-4 6-7 5" stroke="#F7D6B6" stroke-width="7" stroke-linecap="round"/>
+</g>
+<g>
+<circle cx="118" cy="118" r="12" fill="#F7D6B6"/>
+<path d="M106 118c0-9 6-14 12-14s12 5 12 14c0 4-2 5-3 3-2-3-5-4-9-4s-7 1-9 4c-1 2-3 1-3-3z" fill="#33251C"/>
+<path d="M104 138c2-7 7-11 14-11s12 4 14 11l2 26h-32z" fill="#7CC48F"/>
+<path d="M104 142c-5 3-8 8-8 13" stroke="#F7D6B6" stroke-width="7" stroke-linecap="round"/>
+</g>
+<ellipse cx="130" cy="170" rx="86" ry="6" fill="#CFE9D6" opacity=".6"/>
+</svg>
+</div>
+<div class="m-feature-grid">
+<button class="m-feat" type="button" data-tab="overview"><span class="m-feat-ico" data-ico="overview"></span><span>Overview</span></button>
+<button class="m-feat" type="button" data-tab="calendar"><span class="m-feat-ico" data-ico="calendar"></span><span>30-Day Plan</span></button>
+<button class="m-feat" type="button" data-tab="content"><span class="m-feat-ico" data-ico="content"></span><span>Content Studio</span></button>
+<button class="m-feat" type="button" data-tab="creator"><span class="m-feat-ico" data-ico="creator"></span><span>Reels &amp; Posters</span></button>
+</div>
+<button class="m-banner" type="button" data-tab="businessdesk">
+<span class="m-banner-ico" data-ico="metrics"></span>
+<span class="m-banner-txt"><b>Grow Your Business</b><span>Healthy People. Healthy Business.</span></span>
+<span class="m-banner-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+</button>
+<div class="m-quick">
+<h2 class="m-quick-title"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.8 6.2 6.7.7-5 4.6 1.4 6.6L12 17.4 6.1 20.7l1.4-6.6-5-4.6 6.7-.7z"/></svg>Quick Access</h2>
+<div class="m-quick-grid">
+<button class="m-quick-card" type="button" data-tab="checkin"><span data-ico="checkin"></span>Health Check-in</button>
+<button class="m-quick-card" type="button" data-tab="bmi-guide"><span data-ico="bmi-guide"></span>BMI Guide</button>
+<button class="m-quick-card" type="button" data-tab="compliance"><span data-ico="compliance"></span>Compliance</button>
+<button class="m-quick-card" type="button" data-tab="metrics"><span data-ico="metrics"></span>Metrics</button>
+</div>
 </div>
 </section>
 <main>
