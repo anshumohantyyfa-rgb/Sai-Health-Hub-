@@ -95,7 +95,9 @@ function startFakePostgrest() {
         send(res, 404, { message: `unhandled ${req.method} ${req.url}` });
       });
     });
-    server.listen(0, '127.0.0.1', () => resolve(server));
+    // Ephemeral test fixture: let the OS pick a free port. No host pin, so the
+    // production server's 0.0.0.0 bind is the only fixed listener in this repo.
+    server.listen(0, () => resolve(server));
   });
 }
 
